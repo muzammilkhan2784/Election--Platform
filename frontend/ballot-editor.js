@@ -59,25 +59,25 @@ function officeHtml(office = null, idx) {
   const candidatesHtml = candidates.map((c, ci) => candidateRowHtml(c, ci)).join("");
 
   return `
-  <div class="office-block border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50" data-office="${idx}">
+  <div class="office-block border border-ink-200 rounded-xl p-4 space-y-3 bg-ink-50" data-office="${idx}">
     <div class="flex items-center justify-between gap-2">
       <input type="text" placeholder="Office title (e.g. President)" value="${title}"
-        class="office-title flex-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        class="office-title flex-1 px-3 py-2 border border-ink-300 rounded-lg text-ink-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
       <button class="remove-office text-red-400 hover:text-red-600 text-sm font-medium transition">Remove</button>
     </div>
     <div class="flex gap-4 flex-wrap items-center">
-      <label class="text-sm text-gray-600 flex items-center gap-2">
+      <label class="text-sm text-ink-600 flex items-center gap-2">
         Votes allowed:
         <input type="number" min="1" value="${votesAllowed}"
-          class="votes-allowed w-16 px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          class="votes-allowed w-16 px-2 py-1 border border-ink-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
       </label>
-      <label class="text-sm text-gray-600 flex items-center gap-2 cursor-pointer">
+      <label class="text-sm text-ink-600 flex items-center gap-2 cursor-pointer">
         <input type="checkbox" class="write-in-toggle" ${writeIn ? "checked" : ""} />
         Allow write-in
       </label>
     </div>
     <div class="candidates-list space-y-2">${candidatesHtml}</div>
-    <button class="add-candidate text-sm text-indigo-600 hover:text-indigo-800 font-medium transition">+ Add Candidate</button>
+    <button class="add-candidate text-sm text-brand-600 hover:text-brand-800 font-medium transition">+ Add Candidate</button>
   </div>`;
 }
 
@@ -90,13 +90,13 @@ function candidateRowHtml(candidate = null, idx) {
   <div class="candidate-row flex gap-2 items-start" data-candidate="${idx}">
     <div class="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-2">
       <input type="text" placeholder="Candidate name" value="${name}"
-        class="cand-name px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        class="cand-name px-3 py-2 border border-ink-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
       <input type="text" placeholder="Title/Position" value="${title}"
-        class="cand-title px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        class="cand-title px-3 py-2 border border-ink-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
       <input type="text" placeholder="Biography (optional)" value="${bio}"
-        class="cand-bio px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        class="cand-bio px-3 py-2 border border-ink-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
       <input type="url" placeholder="Photo URL (optional)" value="${photo}"
-        class="cand-photo px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        class="cand-photo px-3 py-2 border border-ink-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
     </div>
     <button class="remove-candidate text-red-300 hover:text-red-500 text-lg leading-none mt-2 transition">×</button>
   </div>`;
@@ -131,15 +131,15 @@ function initiativeHtml(initiative = null, idx) {
   const optsHtml = options.map((o, oi) => optionRowHtml(o, oi)).join("");
 
   return `
-  <div class="initiative-block border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50" data-initiative="${idx}">
+  <div class="initiative-block border border-ink-200 rounded-xl p-4 space-y-3 bg-ink-50" data-initiative="${idx}">
     <div class="flex items-center justify-between gap-2">
       <input type="text" placeholder="Initiative title (e.g. Bylaw Amendment 1)" value="${title}"
-        class="initiative-title flex-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        class="initiative-title flex-1 px-3 py-2 border border-ink-300 rounded-lg text-ink-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
       <button class="remove-initiative text-red-400 hover:text-red-600 text-sm font-medium transition">Remove</button>
     </div>
-    <textarea placeholder="Description (optional)" class="initiative-desc w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" rows="2">${desc}</textarea>
+    <textarea placeholder="Description (optional)" class="initiative-desc w-full px-3 py-2 border border-ink-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" rows="2">${desc}</textarea>
     <div class="options-list space-y-2">${optsHtml}</div>
-    <button class="add-option text-sm text-indigo-600 hover:text-indigo-800 font-medium transition">+ Add Option</button>
+    <button class="add-option text-sm text-brand-600 hover:text-brand-800 font-medium transition">+ Add Option</button>
   </div>`;
 }
 
@@ -148,7 +148,7 @@ function optionRowHtml(option = null, idx) {
   return `
   <div class="option-row flex gap-2 items-center" data-option="${idx}">
     <input type="text" placeholder="Option (e.g. Yes / No / Abstain)" value="${label}"
-      class="option-label flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+      class="option-label flex-1 px-3 py-2 border border-ink-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
     <button class="remove-option text-red-300 hover:text-red-500 text-lg leading-none transition">×</button>
   </div>`;
 }

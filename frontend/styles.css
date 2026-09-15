@@ -1,3 +1,51 @@
+/* ==========================================================================
+   American Dream Election — base styles
+
+   Tailwind (loaded from the CDN, themed in theme.js) handles layout and
+   one-off utilities. This file owns the things utilities are bad at: design
+   tokens, base typography, focus behaviour, and the handful of components
+   that repeat across pages.
+   ========================================================================== */
+
+:root {
+  /* Kept in step with theme.js so plain CSS and Tailwind classes agree. */
+  --brand-50: #f2f5ff;
+  --brand-100: #e6ebff;
+  --brand-200: #ccd6fe;
+  --brand-500: #6070ef;
+  --brand-600: #4750df;
+  --brand-700: #3a3cbd;
+
+  --ink-50: #f8fafc;
+  --ink-100: #f1f5f9;
+  --ink-200: #e6ebf2;
+  --ink-300: #cfd8e3;
+  --ink-400: #94a3b8;
+  --ink-500: #64748b;
+  --ink-600: #475569;
+  --ink-700: #334155;
+  --ink-800: #1e293b;
+  --ink-900: #0f172a;
+
+  --danger-50: #fef2f2;
+  --danger-200: #fecaca;
+  --danger-600: #dc2626;
+  --danger-700: #b91c1c;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-lift: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --shadow-pop: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+    "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 *,
 *::before,
 *::after {
@@ -7,15 +55,49 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: radial-gradient(circle at top, #e5edff 0, #f5f7fb 45%, #eef2ff 100%);
-  color: #1f2933;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  color: var(--ink-800);
+  background-color: var(--ink-50);
+  line-height: 1.55;
+  /* Slightly tighter tracking on body copy keeps dense tables readable. */
+  letter-spacing: -0.006em;
 }
+
+/* Headings get noticeably tighter tracking — at large sizes the default
+   spacing looks loose and amateurish. */
+h1, h2, h3, h4 {
+  letter-spacing: -0.021em;
+  color: var(--ink-900);
+  font-weight: 650;
+}
+
+/* One visible focus treatment everywhere, rather than each control inventing
+   its own (or removing it entirely). */
+:focus-visible {
+  outline: 2px solid var(--brand-600);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--brand-200);
+  color: var(--ink-900);
+}
+
+/* Numeric columns line up when digits share a width — matters for the vote
+   tallies and the admin tables. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Sign-in
+   -------------------------------------------------------------------------- */
 
 .auth-page {
   min-height: 100vh;
@@ -24,316 +106,409 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, var(--brand-100) 0%, transparent 60%),
+    linear-gradient(180deg, var(--ink-50) 0%, #eef1f7 100%);
 }
 
 .auth-card {
-  width: 420px;
-  max-width: 100%;
-  padding: 36px 40px 32px;
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
-  border: 1px solid #e0e7ff;
+  width: 100%;
+  max-width: 408px;
+  padding: 40px;
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  border: 1px solid var(--ink-200);
 }
 
 .auth-logo {
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: 0;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .auth-logo-img {
-  max-height: 110px;
+  max-height: 72px;
   width: auto;
   object-fit: contain;
-  display: block;
 }
 
 .auth-title {
-  margin: 0 0 24px;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 650;
   text-align: center;
-  color: #1e293b;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .auth-subtitle {
-  margin: 0 0 24px;
+  margin: 0 0 28px;
   font-size: 14px;
-  color: #6b7280;
-  line-height: 1.4;
+  color: var(--ink-500);
+  text-align: center;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .auth-form label {
   font-size: 13px;
-  font-weight: 500;
-  color: #475569;
+  font-weight: 550;
+  color: var(--ink-700);
 }
 
+/* --------------------------------------------------------------------------
+   Form controls
+   -------------------------------------------------------------------------- */
+
 input[type="email"],
-input[type="password"] {
-  height: 40px;
-  padding: 0 12px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  font-size: 15px;
-  background: #fafbfc;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+input[type="password"],
+input[type="text"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ink-300);
+  font-family: inherit;
+  font-size: 14.5px;
+  color: var(--ink-900);
+  background: #ffffff;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-400);
 }
 
 input[type="email"]:hover,
-input[type="password"]:hover {
-  border-color: #94a3b8;
+input[type="password"]:hover,
+input[type="text"]:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--ink-400);
 }
 
 input[type="email"]:focus,
-input[type="password"]:focus {
+input[type="password"]:focus,
+input[type="text"]:focus,
+input[type="date"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  background: #ffffff;
+  border-color: var(--brand-500);
+  /* A ring rather than a glow: crisper, and it survives on dark backgrounds. */
+  box-shadow: 0 0 0 3px rgba(96, 112, 239, 0.16);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--ink-100);
+  color: var(--ink-400);
+  cursor: not-allowed;
 }
 
 .form-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 2px;
+  gap: 12px;
 }
 
 .checkbox {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: #475569;
+  font-size: 13.5px;
+  color: var(--ink-600);
   cursor: pointer;
+  user-select: none;
 }
 
 .checkbox input[type="checkbox"] {
   width: 16px;
   height: 16px;
+  accent-color: var(--brand-600);
+  cursor: pointer;
 }
 
 .link-small {
-  font-size: 13px;
-  color: #2563eb;
+  font-size: 13.5px;
+  color: var(--brand-600);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 550;
+  transition: color 0.15s var(--ease);
 }
 
 .link-small:hover {
+  color: var(--brand-700);
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-.link-small:focus-visible {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
-  border-radius: 2px;
-}
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
 
 .btn-primary {
-  margin-top: 8px;
+  margin-top: 6px;
   width: 100%;
-  height: 44px;
+  min-height: 44px;
+  padding: 0 18px;
   border: none;
-  border-radius: 6px;
-  background-color: #4b5563;
+  border-radius: var(--radius-sm);
+  background: var(--brand-600);
   color: #ffffff;
+  font-family: inherit;
   font-size: 15px;
   font-weight: 600;
+  letter-spacing: -0.008em;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.05s;
+  transition: background-color 0.15s var(--ease), box-shadow 0.15s var(--ease),
+    transform 0.06s var(--ease);
 }
 
-.btn-primary:hover {
-  background-color: #374151;
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-700);
+  box-shadow: var(--shadow-lift);
 }
 
-.btn-primary:active {
+.btn-primary:active:not(:disabled) {
   transform: translateY(1px);
+  box-shadow: none;
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.btn-primary:disabled:hover {
-  transform: none;
-}
-
-.btn-primary:focus-visible {
-  outline: 2px solid #4b5563;
-  outline-offset: 2px;
+  background: var(--ink-300);
+  color: var(--ink-500);
+  cursor: not-allowed;
 }
 
 .form-error {
-  margin-top: 8px;
+  margin-top: 4px;
   min-height: 20px;
-  font-size: 13px;
-  color: #b91c1c;
-  line-height: 1.4;
+  font-size: 13.5px;
+  color: var(--danger-700);
 }
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 24px;
-  background: #fff;
-  border-bottom: 1px solid #dbe4ff;
+.form-error:not(:empty) {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-50);
+  border: 1px solid var(--danger-200);
 }
 
-.topbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.topbar-logo {
-  height: 36px;
-  width: auto;
-}
-
-.topbar h1 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.page {
-  max-width: 980px;
-  margin: 24px auto;
-  padding: 0 16px 24px;
-  display: grid;
-  gap: 16px;
-}
+/* --------------------------------------------------------------------------
+   Surfaces
+   -------------------------------------------------------------------------- */
 
 .panel {
-  background: #fff;
-  border: 1px solid #e0e7ff;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-  padding: 16px;
-}
-
-.list {
-  display: grid;
-  gap: 12px;
+  background: #ffffff;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
 }
 
 .card {
-  border: 1px solid #dbe4ff;
-  border-radius: 10px;
-  padding: 12px;
-  background: #fdfdff;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 18px;
+  transition: box-shadow 0.18s var(--ease), border-color 0.18s var(--ease),
+    transform 0.18s var(--ease);
+}
+
+/* Only cards that lead somewhere lift on hover, so the affordance means
+   something. */
+.card-interactive:hover {
+  box-shadow: var(--shadow-pop);
+  border-color: var(--brand-200);
+  transform: translateY(-2px);
 }
 
 .card-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
 .card h3 {
   margin: 0;
-  font-size: 18px;
-}
-
-.card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.btn-link,
-.btn-secondary {
-  display: inline-block;
-  text-decoration: none;
-  border: 1px solid #94a3b8;
-  background: #fff;
-  color: #0f172a;
-  border-radius: 6px;
-  padding: 7px 12px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-link:hover,
-.btn-secondary:hover {
-  background: #f1f5f9;
-}
-
-.badge {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 999px;
-}
-
-.badge-draft {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.badge-active {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.badge-completed {
-  background: #dbeafe;
-  color: #1d4ed8;
+  font-size: 16.5px;
+  font-weight: 640;
+  line-height: 1.35;
 }
 
 .muted {
-  color: #64748b;
+  color: var(--ink-500);
   margin: 4px 0;
+  font-size: 13.5px;
 }
 
+/* --------------------------------------------------------------------------
+   Badges — colour carries the election state, so keep them legible
+   -------------------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.badge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+}
+
+.badge-draft {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.badge-active {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.badge-completed {
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border-color: var(--brand-200);
+}
+
+/* --------------------------------------------------------------------------
+   Tables — the admin screens render thousands of rows
+   -------------------------------------------------------------------------- */
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ink-50);
+  color: var(--ink-600);
+  font-size: 11.5px;
+  font-weight: 620;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ink-200);
+}
+
+.data-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ink-100);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr {
+  transition: background-color 0.12s var(--ease);
+}
+
+.data-table tbody tr:hover {
+  background: var(--brand-50);
+}
+
+/* --------------------------------------------------------------------------
+   Voting
+   -------------------------------------------------------------------------- */
+
 .vote-section {
-  border: 1px solid #dbe4ff;
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 12px;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
 }
 
 .vote-section h3 {
-  margin: 0 0 8px;
+  margin: 0 0 14px;
+  font-size: 16.5px;
 }
 
+/* The whole row is the target, not just the radio — much easier to hit, and
+   the selected state is unambiguous. */
 .vote-option {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
 }
 
-/* ------------------------------------------------------------------ */
-/*  Alert animations (used by components.js showAlert)                */
-/* ------------------------------------------------------------------ */
+.vote-option:hover {
+  border-color: var(--brand-300, #a8b8fb);
+  background: var(--brand-50);
+}
+
+.vote-option input[type="radio"],
+.vote-option input[type="checkbox"] {
+  margin-top: 2px;
+  width: 17px;
+  height: 17px;
+  accent-color: var(--brand-600);
+  flex: none;
+  cursor: pointer;
+}
+
+.vote-option:has(input:checked) {
+  border-color: var(--brand-500);
+  background: var(--brand-50);
+  box-shadow: 0 0 0 1px var(--brand-500) inset;
+}
+
+/* --------------------------------------------------------------------------
+   Alerts
+   -------------------------------------------------------------------------- */
 
 @keyframes alertSlideIn {
   from {
@@ -357,3 +532,43 @@ input[type="password"]:focus {
   }
 }
 
+/* Skeleton shimmer for loading states. */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.skeleton {
+  background: var(--ink-200);
+  border-radius: var(--radius-sm);
+  animation: skeletonPulse 1.4s var(--ease) infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .card-interactive:hover {
+    transform: none;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

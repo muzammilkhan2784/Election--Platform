@@ -24,7 +24,7 @@ async function load() {
     const elections = await res.json();
 
     if (!elections.length) {
-      listEl.innerHTML = `<p class="text-gray-400 text-sm">No active elections in your society.</p>`;
+      listEl.innerHTML = `<p class="text-ink-400 text-sm">No active elections in your society.</p>`;
       return;
     }
 
@@ -47,34 +47,34 @@ async function load() {
       const notVoted = members.filter((m) => !m.has_voted);
 
       const memberRow = (m, didVote) => `
-        <li class="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-          <span class="text-sm text-gray-700">${m.member_name}</span>
-          <span class="text-xs font-medium px-2 py-0.5 rounded-full ${didVote ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}">
+        <li class="flex items-center justify-between py-1.5 border-b border-ink-50 last:border-0">
+          <span class="text-sm text-ink-700">${m.member_name}</span>
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full ${didVote ? "bg-green-100 text-green-700" : "bg-ink-100 text-ink-400"}">
             ${didVote ? "Voted" : "Not voted"}
           </span>
         </li>`;
 
       return `
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <div class="bg-white rounded-xl border border-ink-100 shadow-sm p-6">
           <div class="flex items-start justify-between gap-4 mb-4">
             <div>
-              <h3 class="font-semibold text-gray-800">${e.name}</h3>
-              <p class="text-xs text-gray-400 mt-0.5">${e.start_date || ""} &rarr; ${e.end_date || ""}</p>
+              <h3 class="font-semibold text-ink-800">${e.name}</h3>
+              <p class="text-xs text-ink-400 mt-0.5">${e.start_date || ""} &rarr; ${e.end_date || ""}</p>
             </div>
-            <span class="text-2xl font-bold text-indigo-600 whitespace-nowrap">${pct}%</span>
+            <span class="text-2xl font-bold text-brand-600 whitespace-nowrap">${pct}%</span>
           </div>
 
-          <div class="w-full bg-gray-100 rounded-full h-3 mb-2">
-            <div class="bg-indigo-500 h-3 rounded-full transition-all" style="width: ${pct}%"></div>
+          <div class="w-full bg-ink-100 rounded-full h-3 mb-2">
+            <div class="bg-brand-500 h-3 rounded-full transition-all" style="width: ${pct}%"></div>
           </div>
-          <p class="text-sm text-gray-500 mb-4">
-            <span class="font-medium text-gray-700">${e.voted_count}</span> of
-            <span class="font-medium text-gray-700">${e.total_eligible}</span> eligible members have voted
+          <p class="text-sm text-ink-500 mb-4">
+            <span class="font-medium text-ink-700">${e.voted_count}</span> of
+            <span class="font-medium text-ink-700">${e.total_eligible}</span> eligible members have voted
           </p>
 
           <!-- Member roster -->
           ${members.length ? `
-          <ul class="mt-2 divide-y divide-gray-50">
+          <ul class="mt-2 divide-y divide-ink-50">
             ${[...voted, ...notVoted].map((m) => memberRow(m, m.has_voted)).join("")}
           </ul>` : ""}
         </div>

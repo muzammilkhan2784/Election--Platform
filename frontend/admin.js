@@ -14,10 +14,10 @@ function switchTab(tab) {
   ["users", "societies", "assignments", "audit", "reports"].forEach((t) => {
     document.getElementById(`panel-${t}`).classList.toggle("hidden", t !== tab);
     const btn = document.getElementById(`tab-${t}`);
-    btn.classList.toggle("border-indigo-600", t === tab);
-    btn.classList.toggle("text-indigo-600", t === tab);
+    btn.classList.toggle("border-brand-600", t === tab);
+    btn.classList.toggle("text-brand-600", t === tab);
     btn.classList.toggle("border-transparent", t !== tab);
-    btn.classList.toggle("text-gray-500", t !== tab);
+    btn.classList.toggle("text-ink-500", t !== tab);
   });
   if (tab === "assignments") loadAssignments();
   if (tab === "audit") loadAuditLogs();
@@ -40,17 +40,17 @@ async function loadUsers() {
   allUsers = await api("/users");
   const tbody = document.getElementById("users-table-body");
   tbody.innerHTML = allUsers.map((u) => `
-    <tr class="hover:bg-gray-50">
-      <td class="px-4 py-3 text-gray-800">${u.first_name || ""} ${u.last_name || ""}</td>
-      <td class="px-4 py-3 text-gray-500">${u.email}</td>
-      <td class="px-4 py-3">
+    <tr class="hover:bg-ink-50">
+      <td class="text-ink-800">${u.first_name || ""} ${u.last_name || ""}</td>
+      <td class="text-ink-500">${u.email}</td>
+      <td>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium ${roleColor(u.role)}">${u.role}</span>
       </td>
-      <td class="px-4 py-3 text-gray-500">${u.society_name || "—"}</td>
-      <td class="px-4 py-3">
+      <td class="text-ink-600 max-w-[220px] truncate" title="${u.society_name || ""}">${u.society_name || "—"}</td>
+      <td>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium ${u.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}">${u.status}</span>
       </td>
-      <td class="px-4 py-3">
+      <td>
         ${u.status === "active"
           ? `<button onclick="disableUser(${u.user_id})" class="text-xs text-red-500 hover:underline">Disable</button>`
           : `<button onclick="enableUser(${u.user_id})" class="text-xs text-green-600 hover:underline">Enable</button>`
@@ -62,7 +62,7 @@ async function loadUsers() {
 
 function roleColor(role) {
   return { admin: "bg-red-100 text-red-700", employee: "bg-blue-100 text-blue-700",
-           officer: "bg-purple-100 text-purple-700", member: "bg-green-100 text-green-700" }[role] || "bg-gray-100 text-gray-500";
+           officer: "bg-purple-100 text-purple-700", member: "bg-green-100 text-green-700" }[role] || "bg-ink-100 text-ink-500";
 }
 
 window.disableUser = async (userId) => {
@@ -112,9 +112,9 @@ async function loadSocieties() {
   allSocieties = await api("/societies");
   const list = document.getElementById("societies-list");
   list.innerHTML = allSocieties.map((s) => `
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <h3 class="font-semibold text-gray-800">${s.name}</h3>
-      <p class="text-sm text-gray-500 mt-1">${s.description || "No description"}</p>
+    <div class="bg-white rounded-xl border border-ink-100 shadow-sm p-5">
+      <h3 class="font-semibold text-ink-800">${s.name}</h3>
+      <p class="text-sm text-ink-500 mt-1">${s.description || "No description"}</p>
     </div>
   `).join("");
 
@@ -151,10 +151,10 @@ async function loadAssignments() {
   const assignments = await api("/societies/assignments");
   const tbody = document.getElementById("assignments-table-body");
   tbody.innerHTML = assignments.map((a) => `
-    <tr class="hover:bg-gray-50">
-      <td class="px-4 py-3 text-gray-800">${a.employee_name}</td>
-      <td class="px-4 py-3 text-gray-500">${a.society_name}</td>
-      <td class="px-4 py-3">
+    <tr class="hover:bg-ink-50">
+      <td class="text-ink-800">${a.employee_name}</td>
+      <td class="text-ink-600 max-w-[260px] truncate" title="${a.society_name}">${a.society_name}</td>
+      <td>
         <button onclick="unassign(${a.user_id}, ${a.society_id})" class="text-xs text-red-500 hover:underline">Remove</button>
       </td>
     </tr>
@@ -206,23 +206,23 @@ async function loadAuditLogs() {
 
     document.getElementById("audit-ballot-body").innerHTML = data.ballot_events.length
       ? data.ballot_events.map((r) => `
-          <tr class="hover:bg-gray-50">
-            <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">${r.edited_at.slice(0, 19).replace("T", " ")}</td>
-            <td class="px-4 py-3 text-gray-700">${r.user_name}<br><span class="text-xs text-gray-400">${r.user_email}</span></td>
-            <td class="px-4 py-3 text-gray-600">${r.election_name}</td>
-            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">${actionLabel(r.action)}</span></td>
-            <td class="px-4 py-3 text-gray-400 text-xs">${r.details || "—"}</td>
+          <tr class="hover:bg-ink-50">
+            <td class="text-ink-400 text-xs whitespace-nowrap">${r.edited_at.slice(0, 19).replace("T", " ")}</td>
+            <td class="text-ink-700">${r.user_name}<br><span class="text-xs text-ink-400">${r.user_email}</span></td>
+            <td class="text-ink-600">${r.election_name}</td>
+            <td><span class="px-2 py-0.5 rounded-full text-xs font-medium bg-brand-50 text-brand-700">${actionLabel(r.action)}</span></td>
+            <td class="text-ink-400 text-xs">${r.details || "—"}</td>
           </tr>`).join("")
-      : `<tr><td colspan="5" class="px-4 py-4 text-gray-400 text-sm">No ballot activity yet.</td></tr>`;
+      : `<tr><td colspan="5" class="px-4 py-4 text-ink-400 text-sm">No ballot activity yet.</td></tr>`;
 
     document.getElementById("audit-votes-body").innerHTML = data.vote_events.length
       ? data.vote_events.map((r) => `
-          <tr class="hover:bg-gray-50">
-            <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">${r.submitted_at.slice(0, 19).replace("T", " ")}</td>
-            <td class="px-4 py-3 text-gray-700">${r.user_name}<br><span class="text-xs text-gray-400">${r.user_email}</span></td>
-            <td class="px-4 py-3 text-gray-600">${r.election_name}</td>
+          <tr class="hover:bg-ink-50">
+            <td class="text-ink-400 text-xs whitespace-nowrap">${r.submitted_at.slice(0, 19).replace("T", " ")}</td>
+            <td class="text-ink-700">${r.user_name}<br><span class="text-xs text-ink-400">${r.user_email}</span></td>
+            <td class="text-ink-600">${r.election_name}</td>
           </tr>`).join("")
-      : `<tr><td colspan="3" class="px-4 py-4 text-gray-400 text-sm">No votes cast yet.</td></tr>`;
+      : `<tr><td colspan="3" class="px-4 py-4 text-ink-400 text-sm">No votes cast yet.</td></tr>`;
   } catch (e) { showAlert(e.message, "error"); }
 }
 
@@ -245,23 +245,23 @@ async function loadReports() {
       { label: "Employees",           value: sys.employees },
     ];
     document.getElementById("system-stats-grid").innerHTML = cards.map((c) => `
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
-        <p class="text-2xl font-bold text-indigo-600">${c.value}</p>
-        <p class="text-xs text-gray-500 mt-1">${c.label}</p>
+      <div class="bg-white rounded-xl border border-ink-100 shadow-sm p-4 text-center">
+        <p class="text-2xl font-bold text-brand-600">${c.value}</p>
+        <p class="text-xs text-ink-500 mt-1">${c.label}</p>
       </div>`).join("");
 
     // Society stats table
     document.getElementById("society-stats-body").innerHTML = data.society_stats.length
       ? data.society_stats.map((s) => `
-          <tr class="hover:bg-gray-50">
-            <td class="px-4 py-3 font-medium text-gray-800">${s.name}</td>
-            <td class="px-4 py-3 text-gray-600">${s.member_count}</td>
-            <td class="px-4 py-3 text-gray-600">${s.total_elections}</td>
-            <td class="px-4 py-3 text-gray-600">${s.active_elections}</td>
-            <td class="px-4 py-3 text-gray-600">${s.completed_elections}</td>
-            <td class="px-4 py-3 text-gray-600">${s.avg_turnout}</td>
+          <tr class="hover:bg-ink-50">
+            <td class="font-medium text-ink-800">${s.name}</td>
+            <td class="text-ink-600">${s.member_count}</td>
+            <td class="text-ink-600">${s.total_elections}</td>
+            <td class="text-ink-600">${s.active_elections}</td>
+            <td class="text-ink-600">${s.completed_elections}</td>
+            <td class="text-ink-600">${s.avg_turnout}</td>
           </tr>`).join("")
-      : `<tr><td colspan="6" class="px-4 py-4 text-gray-400 text-sm">No society data yet.</td></tr>`;
+      : `<tr><td colspan="6" class="px-4 py-4 text-ink-400 text-sm">No society data yet.</td></tr>`;
   } catch (e) { showAlert(e.message, "error"); }
 }
 

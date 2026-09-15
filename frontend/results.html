@@ -5,27 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Results - American Dream Election</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body class="min-h-screen bg-gray-50 flex flex-col">
+  <body class="min-h-screen bg-ink-50 flex flex-col">
 
     <!-- Shared Navbar -->
-    <header id="app-navbar" class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10"></header>
+    <header id="app-navbar" class="bg-white/90 backdrop-blur border-b border-ink-200 sticky top-0 z-20"></header>
 
     <!-- Content -->
     <main class="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-8">
+      <header>
+        <h1 id="results-heading" class="text-[22px] font-bold text-ink-900">Election results</h1>
+        <p class="text-ink-500 mt-1 text-[14.5px]">Final tallies for each office and initiative on this ballot.</p>
+      </header>
+
       <section>
-        <h2 class="text-lg font-semibold text-gray-700 mb-4 uppercase tracking-wide text-sm">Office Tallies</h2>
+        <h2 class="text-[11.5px] font-semibold text-ink-500 mb-3 uppercase tracking-[0.06em]">Offices</h2>
         <div id="office-results" class="space-y-4"></div>
       </section>
+
       <section>
-        <h2 class="text-lg font-semibold text-gray-700 mb-4 uppercase tracking-wide text-sm">Initiative Tallies</h2>
+        <h2 class="text-[11.5px] font-semibold text-ink-500 mb-3 uppercase tracking-[0.06em]">Initiatives</h2>
         <div id="initiative-results" class="space-y-4"></div>
       </section>
     </main>
 
     <!-- Shared Footer -->
-    <footer id="app-footer" class="border-t border-gray-200 bg-white mt-auto"></footer>
+    <footer id="app-footer" class="border-t border-ink-200 bg-white mt-auto"></footer>
 
     <script src="./results.js" type="module"></script>
   </body>

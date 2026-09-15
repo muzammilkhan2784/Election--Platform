@@ -20,24 +20,24 @@ function setMessage(text, isError = true) {
 
 function render(data) {
   // Update navbar title with election name
-  const titleEl = document.querySelector("#app-navbar span.text-lg");
+  const titleEl = document.getElementById("nav-title");
   if (titleEl) titleEl.textContent = data.election.name;
 
   const officeHtml = data.offices.map((office) => {
     const type = office.votes_allowed > 1 ? "checkbox" : "radio";
     const name = `office_${office.office_id}`;
     const candidates = office.candidates.map((c) => `
-      <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 cursor-pointer transition">
+      <label class="vote-option">
         <input type="${type}" name="${name}" value="${c.candidate_id}"
-          class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" />
-        ${c.photo_url ? `<img src="${c.photo_url}" alt="${c.name}" class="w-10 h-10 rounded-full object-cover border border-gray-200" onerror="this.style.display='none'" />` : ""}
-        <span class="text-gray-700 font-medium">${c.name}${c.title_position ? `<span class="text-xs text-gray-400 font-normal ml-1">${c.title_position}</span>` : ""}</span>
+          />
+        ${c.photo_url ? `<img src="${c.photo_url}" alt="${c.name}" class="w-10 h-10 rounded-full object-cover border border-ink-200" onerror="this.style.display='none'" />` : ""}
+        <span class="text-[14.5px] text-ink-800 font-medium">${c.name}${c.title_position ? `<span class="text-xs text-ink-400 font-normal ml-1">${c.title_position}</span>` : ""}</span>
       </label>
     `).join("");
     return `
-      <section class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-1">${office.title}</h3>
-        <p class="text-sm text-gray-400 mb-4">Select up to ${office.votes_allowed}</p>
+      <section class="vote-section">
+        <h3 class="!mb-1">${office.title}</h3>
+        <p class="text-[13px] text-ink-500 mb-4">Select up to ${office.votes_allowed}</p>
         <div class="space-y-2">${candidates}</div>
       </section>
     `;
@@ -45,15 +45,15 @@ function render(data) {
 
   const initiativeHtml = data.initiatives.map((i) => {
     const options = i.options.map((o) => `
-      <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 cursor-pointer transition">
+      <label class="vote-option">
         <input type="radio" name="initiative_${i.initiative_id}" value="${o.option_id}"
-          class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" />
-        <span class="text-gray-700 font-medium">${o.label}</span>
+          />
+        <span class="text-[14.5px] text-ink-800 font-medium">${o.label}</span>
       </label>
     `).join("");
     return `
-      <section class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">${i.title}</h3>
+      <section class="vote-section">
+        <h3>${i.title}</h3>
         <div class="space-y-2">${options}</div>
       </section>
     `;
@@ -62,7 +62,7 @@ function render(data) {
   form.innerHTML = `
     ${officeHtml}
     ${initiativeHtml}
-    <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition mt-2" type="submit">
+    <button class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3 rounded-xl transition mt-2" type="submit">
       Submit Vote
     </button>
   `;
