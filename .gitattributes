@@ -1,0 +1,13 @@
+# Store text files with LF in the repository regardless of the platform they
+# were written on, so Windows checkouts don't show every line as modified.
+* text=auto eol=lf
+
+# Source dataset: keep byte-for-byte. Line-ending conversion would rewrite
+# 1.4M lines in votes.psv and change the files the importer reads.
+data/** -text
+
+# Binary assets
+*.jpeg binary
+*.jpg binary
+*.png binary
+*.ico binary

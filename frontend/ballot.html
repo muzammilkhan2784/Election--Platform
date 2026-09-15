@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ballot - American Dream Election</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="min-h-screen bg-gray-50 flex flex-col">
+
+    <!-- Shared Navbar -->
+    <header id="app-navbar" class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10"></header>
+
+    <!-- Content -->
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+      <form id="ballot-form" class="space-y-4"></form>
+      <p id="ballot-message" class="mt-4 text-sm text-center font-medium"></p>
+    </main>
+
+    <!-- Shared Footer -->
+    <footer id="app-footer" class="border-t border-gray-200 bg-white mt-auto"></footer>
+
+    <script src="./ballot.js" type="module"></script>
+  </body>
+</html>

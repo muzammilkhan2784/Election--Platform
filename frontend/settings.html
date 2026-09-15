@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Settings - American Dream Election</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="min-h-screen bg-gray-50 flex flex-col">
+
+    <header id="app-navbar" class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10"></header>
+
+    <main class="max-w-xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-6">
+
+      <h2 class="text-xl font-bold text-gray-800">Settings</h2>
+
+      <!-- Profile -->
+      <section class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
+        <h3 class="font-semibold text-gray-700">Profile</h3>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Email</label>
+          <input id="profile-email" type="email" disabled
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">First Name</label>
+            <input id="profile-first" type="text"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Last Name</label>
+            <input id="profile-last" type="text"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+
+        <button id="save-profile-btn"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg transition">
+          Save Profile
+        </button>
+        <p id="profile-msg" class="text-sm hidden"></p>
+      </section>
+
+      <!-- Change Password -->
+      <section class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
+        <h3 class="font-semibold text-gray-700">Change Password</h3>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Current Password</label>
+          <input id="pw-current" type="password"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">New Password</label>
+          <input id="pw-new" type="password"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Confirm New Password</label>
+          <input id="pw-confirm" type="password"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+
+        <button id="save-password-btn"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg transition">
+          Update Password
+        </button>
+        <p id="password-msg" class="text-sm hidden"></p>
+      </section>
+
+    </main>
+
+    <footer id="app-footer" class="border-t border-gray-200 bg-white mt-auto"></footer>
+
+    <script src="./settings.js" type="module"></script>
+  </body>
+</html>

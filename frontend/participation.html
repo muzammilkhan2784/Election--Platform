@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voter Participation - American Dream Election</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="min-h-screen bg-gray-50 flex flex-col">
+
+    <header id="app-navbar" class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10"></header>
+
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+      <h2 class="text-xl font-bold text-gray-800 mb-2">Voter Participation</h2>
+      <p class="text-sm text-gray-500 mb-6">Live turnout for all active elections in your society.</p>
+
+      <div id="participation-list" class="space-y-4">
+        <p class="text-gray-400 text-sm">Loading...</p>
+      </div>
+    </main>
+
+    <footer id="app-footer" class="border-t border-gray-200 bg-white mt-auto"></footer>
+
+    <script src="./participation.js" type="module"></script>
+  </body>
+</html>

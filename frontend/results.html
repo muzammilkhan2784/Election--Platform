@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Results - American Dream Election</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="min-h-screen bg-gray-50 flex flex-col">
+
+    <!-- Shared Navbar -->
+    <header id="app-navbar" class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10"></header>
+
+    <!-- Content -->
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-8">
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 uppercase tracking-wide text-sm">Office Tallies</h2>
+        <div id="office-results" class="space-y-4"></div>
+      </section>
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 uppercase tracking-wide text-sm">Initiative Tallies</h2>
+        <div id="initiative-results" class="space-y-4"></div>
+      </section>
+    </main>
+
+    <!-- Shared Footer -->
+    <footer id="app-footer" class="border-t border-gray-200 bg-white mt-auto"></footer>
+
+    <script src="./results.js" type="module"></script>
+  </body>
+</html>
