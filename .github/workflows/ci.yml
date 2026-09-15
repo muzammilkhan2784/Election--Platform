@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Unit tests ──────────────────────────────────────────────────────────────
+  # The service tests mock the repository layer, so they need no database and
+  # finish in under a second. Kept separate so failures here are obvious.
+  tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
+  # ── Database and application ────────────────────────────────────────────────
+  # Runs the documented setup end to end on a clean machine: schema, bulk
+  # import, seed, then boots the app and calls it. This is what catches setup
+  # instructions that have drifted away from the code.
+  integration:
+    name: Database and app
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: american_dream
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U appuser -d american_dream"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: american_dream
+      DB_USER: appuser
+      DB_PASSWORD: ci-password
+      PGPASSWORD: ci-password
+      SECRET_KEY: ci-only-not-a-real-secret
+      FLASK_ENV: development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Apply schema
+        run: |
+          psql -h localhost -U appuser -d american_dream -f database/schema.sql
+          psql -h localhost -U appuser -d american_dream -f database/materialized_view.sql
+
+      - name: Import historical dataset
+        run: python database/import_election_data.py --reset
+
+      - name: Seed demo accounts
+        run: python database/seed.py
+
+      # Checks the importer produced correct data, not merely that it exited 0.
+      # Each query must return 0; a non-zero count fails the step.
+      - name: Verify data integrity
+        run: |
+          set -e
+          check() {
+            result=$(psql -h localhost -U appuser -d american_dream -t -A -c "$2")
+            echo "$1: $result"
+            if [ "$result" != "0" ]; then
+              echo "FAILED: $1 returned $result, expected 0"
+              exit 1
+            fi
+          }
+          check "ballots exceeding votes_allowed" \
+            "SELECT COUNT(*) FROM (SELECT cv.vote_id, cv.office_id
+             FROM candidate_vote cv JOIN office o ON o.office_id = cv.office_id
+             GROUP BY cv.vote_id, cv.office_id, o.votes_allowed
+             HAVING COUNT(*) > o.votes_allowed) x;"
+          check "votes cast outside the voter's society" \
+            "SELECT COUNT(*) FROM vote v
+             JOIN \"user\" u ON u.user_id = v.user_id
+             JOIN election e ON e.election_id = v.election_id
+             WHERE u.society_id IS DISTINCT FROM e.society_id;"
+          check "votes timestamped outside the election window" \
+            "SELECT COUNT(*) FROM vote v JOIN election e USING (election_id)
+             WHERE v.submitted_at::date < e.start_date
+                OR v.submitted_at::date > e.end_date;"
+
+      - name: Start the app
+        run: |
+          gunicorn --workers 2 --bind 127.0.0.1:3000 server:application &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:3000/ >/dev/null && exit 0
+            sleep 1
+          done
+          echo "App failed to start within 20s"
+          exit 1
+
+      - name: Call the API
+        run: |
+          set -e
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)
+          [ "$code" = "200" ] || { echo "homepage returned $code"; exit 1; }
+
+          code=$(curl -s -c /tmp/cookies -o /tmp/login.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:3000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"admin@example.com","password":"password123"}')
+          [ "$code" = "200" ] || { echo "login returned $code"; cat /tmp/login.json; exit 1; }
+
+          code=$(curl -s -b /tmp/cookies -o /dev/null -w '%{http_code}' \
+            http://127.0.0.1:3000/api/elections/751/results)
+          [ "$code" = "200" ] || { echo "results returned $code"; exit 1; }
+
+          echo "homepage, login and results all returned 200"
+
+  # ── Container image ─────────────────────────────────────────────────────────
+  # docker compose up is the documented way to run this, so a broken Dockerfile
+  # breaks the project for everyone.
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --target production -t election-app:ci .
+
+      - name: Build dev image
+        run: docker build --target dev -t election-app:ci-dev .
+
+      - name: Run tests inside the dev image
+        run: docker run --rm election-app:ci-dev python -m pytest tests/ -q
