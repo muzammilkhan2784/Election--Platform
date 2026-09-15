@@ -157,3 +157,100 @@ jobs:
 
       - name: Run tests inside the dev image
         run: docker run --rm election-app:ci-dev python -m pytest tests/ -q
+
+  # ── Event pipeline ──────────────────────────────────────────────────────────
+  # Brings up the real stack with docker compose and follows a vote all the way
+  # through: outbox row -> Kafka -> materialized view refresh. Without this, a
+  # broken relay or consumer would leave CI green.
+  pipeline:
+    name: Event pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write .env for compose
+        run: |
+          cat > .env <<'ENV'
+          DB_HOST=localhost
+          DB_PORT=5433
+          DB_NAME=american_dream
+          DB_USER=appuser
+          DB_PASSWORD=ci-password
+          SECRET_KEY=ci-only-not-a-real-secret
+          FLASK_ENV=development
+          REFRESH_INTERVAL_SECONDS=2
+          ENV
+
+      - name: Start the stack
+        run: docker compose up -d --build
+
+      - name: Wait for postgres and kafka
+        run: |
+          for i in $(seq 1 60); do
+            pg=$(docker inspect --format='{{.State.Health.Status}}' election_postgres 2>/dev/null || echo starting)
+            kf=$(docker inspect --format='{{.State.Health.Status}}' election_kafka 2>/dev/null || echo starting)
+            echo "postgres=$pg kafka=$kf"
+            [ "$pg" = "healthy" ] && [ "$kf" = "healthy" ] && exit 0
+            sleep 5
+          done
+          docker compose logs --tail 50
+          exit 1
+
+      - name: Create schema and seed
+        run: |
+          docker compose exec -T postgres psql -U appuser -d american_dream < database/schema.sql
+          docker compose exec -T postgres psql -U appuser -d american_dream < database/materialized_view.sql
+          docker compose exec -T app python database/seed.py
+
+      - name: Wait for the app
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ >/dev/null && exit 0
+            sleep 2
+          done
+          docker compose logs app --tail 50
+          exit 1
+
+      - name: Cast votes
+        run: |
+          pip install psycopg[binary] python-dotenv
+          python scripts/load_test.py --voters 25 --concurrency 5
+
+      - name: Outbox drains and the view catches up
+        run: |
+          set -e
+          q() { docker compose exec -T postgres psql -U appuser -d american_dream -t -A -c "$1"; }
+
+          for i in $(seq 1 30); do
+            pending=$(q "SELECT COUNT(*) FROM event_outbox WHERE published_at IS NULL")
+            echo "unpublished events: $pending"
+            [ "$pending" = "0" ] && break
+            sleep 2
+          done
+          [ "$pending" = "0" ] || { echo "FAILED: relay did not drain the outbox"; docker compose logs relay --tail 40; exit 1; }
+
+          published=$(q "SELECT COUNT(*) FROM event_outbox WHERE published_at IS NOT NULL")
+          echo "published events: $published"
+          [ "$published" -ge 25 ] || { echo "FAILED: expected >=25 published events"; exit 1; }
+
+          # The consumer must have refreshed the view to match the raw tally.
+          for i in $(seq 1 30); do
+            raw=$(q "SELECT COUNT(*) FROM candidate_vote")
+            mv=$(q "SELECT COALESCE(SUM(vote_count),0) FROM mv_candidate_results")
+            echo "raw=$raw view=$mv"
+            [ "$raw" = "$mv" ] && break
+            sleep 2
+          done
+          [ "$raw" = "$mv" ] || { echo "FAILED: view never caught up"; docker compose logs results-consumer --tail 40; exit 1; }
+          echo "pipeline verified: $published events published, view matches raw at $raw"
+
+      - name: Metrics are exposed
+        run: |
+          set -e
+          curl -sf http://localhost:3000/metrics | grep -q election_http_requests_total
+          curl -sf http://localhost:9090/-/ready
+          echo "app and prometheus metrics reachable"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --tail 100
