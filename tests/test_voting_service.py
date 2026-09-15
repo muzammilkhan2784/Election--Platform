@@ -57,6 +57,7 @@ class TestSubmitVote(unittest.TestCase):
             "vote_repository":     patch("app.services.voting_service.vote_repository"),
             "audit_repository":    patch("app.services.voting_service.audit_repository"),
             "society_repository":  patch("app.services.voting_service.society_repository"),
+            "outbox_repository":   patch("app.services.voting_service.outbox_repository"),
         }
         mocks = {k: p.start() for k, p in patches.items()}
 
@@ -107,6 +108,49 @@ class TestSubmitVote(unittest.TestCase):
             mocks["vote_repository"].insert_initiative_vote.assert_called_once_with(
                 db, 99, 1, 3
             )
+        finally:
+            self._stop_patches()
+
+    # ── Outbox ────────────────────────────────────────────────────────────────
+
+    def test_vote_queues_outbox_event(self):
+        mocks = self._patch_repos()
+        db = MagicMock()
+        try:
+            voting_service.submit_vote(db, 5, _session_user(), VALID_VOTE_DATA)
+            mocks["outbox_repository"].insert_event.assert_called_once()
+            args = mocks["outbox_repository"].insert_event.call_args[0]
+            # Same db handle as the vote inserts, so the event commits with them.
+            self.assertIs(args[0], db)
+            self.assertEqual(args[1], voting_service.VOTE_CAST_TOPIC)
+            # Keyed by election so one election's events stay on one partition
+            # and are therefore consumed in order.
+            self.assertEqual(args[2], 5)
+            self.assertEqual(args[3]["election_id"], 5)
+            self.assertEqual(args[3]["vote_id"], 99)
+        finally:
+            self._stop_patches()
+
+    def test_outbox_event_excludes_voter_identity(self):
+        # The event stream should not reveal who voted; consumers only need to
+        # know that a vote landed and which election it belongs to.
+        mocks = self._patch_repos()
+        db = MagicMock()
+        try:
+            voting_service.submit_vote(db, 5, _session_user(user_id=4242), VALID_VOTE_DATA)
+            payload = mocks["outbox_repository"].insert_event.call_args[0][3]
+            self.assertNotIn("user_id", payload)
+            self.assertNotIn(4242, payload.values())
+        finally:
+            self._stop_patches()
+
+    def test_rejected_vote_queues_no_event(self):
+        mocks = self._patch_repos(already_voted=True)
+        db = MagicMock()
+        try:
+            with self.assertRaises(ValueError):
+                voting_service.submit_vote(db, 5, _session_user(), VALID_VOTE_DATA)
+            mocks["outbox_repository"].insert_event.assert_not_called()
         finally:
             self._stop_patches()
 

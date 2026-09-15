@@ -165,3 +165,29 @@ CREATE INDEX idx_vote_draft_election_id ON vote_draft(election_id);
 CREATE INDEX idx_ballot_edit_audit_election_id ON ballot_edit_audit(election_id);
 CREATE INDEX idx_ballot_edit_audit_user_id ON ballot_edit_audit(user_id);
 CREATE INDEX idx_ballot_edit_audit_edited_at ON ballot_edit_audit(edited_at);
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Transactional outbox
+--
+-- Events are written here inside the same transaction as the change that
+-- produced them, so an event exists if and only if its vote committed. A relay
+-- process publishes unpublished rows to Kafka and stamps published_at.
+--
+-- This avoids the dual-write problem: if the application wrote to Postgres and
+-- Kafka separately, a crash between the two would either lose the event or
+-- announce a vote that was rolled back. It also keeps Kafka off the request
+-- path entirely — voting continues to work while the broker is down.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE event_outbox (
+    event_id BIGSERIAL PRIMARY KEY,
+    topic VARCHAR(255) NOT NULL,
+    event_key VARCHAR(255),
+    payload JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMP
+);
+
+-- Partial index: the relay only ever queries unpublished rows, and this keeps
+-- the index small once the bulk of the table has been published.
+CREATE INDEX idx_event_outbox_unpublished
+    ON event_outbox (event_id) WHERE published_at IS NULL;

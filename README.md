@@ -14,6 +14,7 @@ Runs locally via Docker Compose.
 | Database | PostgreSQL 16 (psycopg3) |
 | Frontend | Vanilla JS + Tailwind CSS |
 | Auth | Flask sessions + bcrypt |
+| Events | Apache Kafka 3.9 (KRaft mode) |
 | Local infrastructure | Docker Compose |
 | Server | Gunicorn (production) |
 
@@ -49,6 +50,8 @@ PostgreSQL
 | Stored procedure | `refresh_election_results()` — refreshes both materialized views atomically |
 | SELECT FOR UPDATE | `get_election_for_update()` in `election_repository.py` — prevents concurrent ballot edits |
 | Bulk loading | `COPY`-based import of the 1.9M-row historical dataset |
+| Transactional outbox | `event_outbox` — events committed with the vote that produced them |
+| SKIP LOCKED | `claim_unpublished()` in `outbox_repository.py` — lets relays scale horizontally |
 | Parameterized queries | All SQL uses `%s` placeholders throughout repositories |
 
 ---
@@ -79,7 +82,13 @@ election-system/
 │       ├── vote_repository.py
 │       ├── society_repository.py
 │       ├── audit_repository.py
+│       ├── outbox_repository.py
 │       └── user_repository.py
+├── workers/
+│   ├── outbox_relay.py          # Publishes committed events to Kafka
+│   └── results_consumer.py      # Debounced materialized view refresh
+├── scripts/
+│   └── load_test.py             # Concurrent voting load test
 ├── frontend/                    # Served directly by Flask (send_from_directory)
 │   ├── login.html
 │   ├── dashboard.html / dashboard.js
@@ -104,9 +113,9 @@ election-system/
 │   ├── import_election_data.py  # Bulk loader for the historical dataset
 │   └── seed.py                  # Demo accounts + one active election
 ├── tests/
-│   └── test_*.py                # 29 unit tests (service layer)
+│   └── test_*.py                # 32 unit tests (service layer)
 ├── Dockerfile                   # App image (production + dev targets)
-├── docker-compose.yml           # PostgreSQL + app
+├── docker-compose.yml           # PostgreSQL + Kafka + app + workers
 ├── .dockerignore
 ├── run.py                       # Start the app for development
 ├── server.py                    # Start the app in production (via Gunicorn)
@@ -114,6 +123,101 @@ election-system/
 ├── requirements-dev.txt
 └── .env                         # Not committed — see setup below
 ```
+
+---
+
+## Event Pipeline
+
+### The problem
+
+Results are served from two materialized views. Refreshing them re-aggregates
+every `candidate_vote` row — measured at **698ms** against the full dataset of
+1.36M rows, while submitting a vote takes about **21ms**.
+
+That leaves no good synchronous option:
+
+- **Refresh on every vote** makes voting 30x slower, and
+  `REFRESH MATERIALIZED VIEW CONCURRENTLY` cannot overlap itself, so concurrent
+  voters serialise behind each other. At 100 votes/second this would demand
+  70 seconds of refresh work per second.
+- **Never refresh** is what the system did before: results were only ever
+  recalculated by the bulk importer, so `/api/elections/<id>/results` served
+  stale tallies indefinitely.
+
+### The design
+
+```
+POST /vote
+    │
+    ├── vote, candidate_vote, audit, event_outbox   ← one transaction
+    │
+    ▼
+event_outbox (PostgreSQL)
+    │
+    │   outbox relay  (workers/outbox_relay.py)
+    ▼
+Kafka topic: election.vote.cast   (3 partitions, keyed by election_id)
+    │
+    │   results consumer  (workers/results_consumer.py)
+    ▼
+CALL refresh_election_results()   ← at most once per REFRESH_INTERVAL_SECONDS
+```
+
+**Transactional outbox.** The vote request does not contact Kafka. It writes the
+event into `event_outbox` in the same transaction as the vote itself, so the
+event exists if and only if the vote committed. A separate relay publishes those
+rows to the broker.
+
+This avoids the dual-write problem — writing to Postgres and Kafka as two
+independent operations, where a failure between them either loses the event or
+announces a vote that was rolled back. It also means **Kafka being down cannot
+stop people voting**; events queue in the table and drain when the broker returns.
+
+**Debounced refresh.** The consumer collapses any number of vote events into at
+most one refresh per interval. Refresh cost becomes a fixed duty cycle — roughly
+700ms per interval — regardless of how fast votes arrive, and results lag by at
+most that interval.
+
+### Delivery guarantees
+
+| Concern | Handling |
+|---|---|
+| Event lost if the app crashes after commit | Impossible — the event is part of that commit |
+| Broker unavailable | Rows stay unpublished and are retried; voting is unaffected |
+| Relay crashes after publishing, before marking | Event republishes (at-least-once) |
+| Duplicate delivery | Harmless — a refresh recomputes from base tables, so it is idempotent |
+| Multiple relay instances | `FOR UPDATE SKIP LOCKED` gives each a disjoint batch |
+| Ordering within an election | Events are keyed by `election_id`, so one election maps to one partition |
+
+The event payload deliberately excludes voter identity. Consumers only need to
+know that a vote landed and which election it belongs to.
+
+### Measured
+
+`scripts/load_test.py` drives concurrent voters against the running stack:
+
+```bash
+python scripts/load_test.py --voters 300 --concurrency 25
+```
+
+300 ballots at concurrency 25, against 2 Gunicorn workers:
+
+| | |
+|---|---|
+| Votes accepted | 300 / 300 |
+| Throughput | 28 votes/sec |
+| Latency p50 / p95 / p99 | 422ms / 625ms / 641ms |
+| Events published | 300, **0 lost** |
+| Materialized view refreshes | **2** |
+
+Those 300 votes collapsed into 2 refreshes of ~580ms each. Refreshing inline on
+each vote would have cost roughly `300 x 650ms = 195 seconds` of aggregation;
+the pipeline did it in about 1.2 seconds of refresh work — a ~160x reduction.
+After the run the view total matched the raw vote count exactly (302 = 302).
+
+The bottleneck in that test is the web tier, not the database or the broker:
+2 synchronous Gunicorn workers serving 2 requests per vote (login, then vote)
+accounts for the observed throughput. Adding workers is the lever there.
 
 ---
 
@@ -207,9 +311,17 @@ python -c "import secrets; print(secrets.token_hex(32))"
 docker compose up -d --build
 ```
 
-This starts two containers: `election_postgres` (PostgreSQL 16) and
-`election_app` (the Flask app under Gunicorn). The app waits for the database
-to report healthy before starting.
+This starts five containers:
+
+| Container | Role |
+|---|---|
+| `election_postgres` | PostgreSQL 16 |
+| `election_kafka` | Kafka 3.9 broker (KRaft, no ZooKeeper) |
+| `election_app` | Flask app under Gunicorn |
+| `election_relay` | Publishes outbox events to Kafka |
+| `election_results_consumer` | Refreshes results views on a debounce |
+
+The app and workers wait for their dependencies to report healthy before starting.
 
 ### 3. Create the schema
 
@@ -341,13 +453,13 @@ docker run --rm --network multi-tenant-election-management-platform-main_default
   election-app:dev python -m pytest tests/ -q
 ```
 
-29 unit tests covering the service layer:
+32 unit tests covering the service layer:
 
 | File | Tests | Covers |
 |---|---|---|
 | `test_auth_service.py` | 7 | Login and password verification |
 | `test_election_service.py` | 10 | Role-based election listing and ballot access |
-| `test_voting_service.py` | 12 | Vote submission rules and transaction contract |
+| `test_voting_service.py` | 15 | Vote submission rules, transaction contract, outbox |
 
 Repositories and the remaining services (`ballot`, `results`, `society`, `user`) are
 not yet covered.

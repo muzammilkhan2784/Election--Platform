@@ -17,6 +17,38 @@ services:
       timeout: 5s
       retries: 10
 
+  # Single-node Kafka in KRaft mode — no ZooKeeper, which Kafka removed the
+  # need for in 3.x. One broker is right for local development; the topic is
+  # partitioned so consumers can scale horizontally later.
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: election_kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # A single broker cannot replicate, so the internal topics must not ask for more.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - election_kafkadata:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
   app:
     build: .
     container_name: election_app
@@ -41,5 +73,47 @@ services:
       postgres:
         condition: service_healthy
 
+  # Moves committed events from the event_outbox table to Kafka. Separate from
+  # the web app so a broker outage delays delivery instead of rejecting votes.
+  relay:
+    build: .
+    container_name: election_relay
+    restart: unless-stopped
+    command: ["python", "-m", "workers.outbox_relay"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  # Collapses vote events into at most one materialized-view refresh per
+  # interval, keeping the ~700ms refresh off the voting path.
+  results-consumer:
+    build: .
+    container_name: election_results_consumer
+    restart: unless-stopped
+    command: ["python", "-m", "workers.results_consumer"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REFRESH_INTERVAL_SECONDS: ${REFRESH_INTERVAL_SECONDS:-5}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
 volumes:
   election_pgdata:
+  election_kafkadata:

@@ -19,7 +19,15 @@ Loose coupling: This service does not import Flask or touch HTTP.
 It receives plain Python dicts and raises plain exceptions.
 """
 
-from app.repositories import election_repository, vote_repository, audit_repository, society_repository
+from app.repositories import (
+    election_repository,
+    vote_repository,
+    audit_repository,
+    society_repository,
+    outbox_repository,
+)
+
+VOTE_CAST_TOPIC = "election.vote.cast"
 
 
 def submit_vote(db, election_id, session_user, vote_data):
@@ -66,4 +74,23 @@ def submit_vote(db, election_id, session_user, vote_data):
 
     audit_repository.insert_audit_event(
         db, election_id, user_id, "vote_submitted", None
+    )
+
+    # Queued in this same transaction, so the event is committed with the vote
+    # or not at all. The relay publishes it to Kafka afterwards; nothing here
+    # contacts the broker, so voting is unaffected if Kafka is unavailable.
+    # Keyed by election so every event for one election lands on one partition
+    # and is consumed in order.
+    outbox_repository.insert_event(
+        db,
+        VOTE_CAST_TOPIC,
+        election_id,
+        {
+            "event": "vote.cast",
+            "election_id": election_id,
+            "vote_id": vote_id,
+            "society_id": election["society_id"],
+            "offices": [ov["office_id"] for ov in office_votes],
+            "initiatives": [iv["initiative_id"] for iv in initiative_votes],
+        },
     )
