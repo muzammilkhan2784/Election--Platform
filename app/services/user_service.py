@@ -65,8 +65,36 @@ def update_user(db, session_user, user_id, data):
     return dict(user)
 
 
-def list_users(db, session_user):
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
+
+
+def list_users(db, session_user, search=None, role=None, limit=50, offset=0):
     if session_user["role"] != "admin":
         raise PermissionError("Only admins can list all users.")
 
-    return [dict(u) for u in user_repository.list_users(db)]
+    # Clamp rather than reject: a caller asking for 10,000 rows gets a sane
+    # page instead of an error, and the endpoint cannot be used to pull the
+    # whole roster in one request. Absent means "default"; a supplied number is
+    # clamped, so limit=0 is treated as a too-small page rather than falling
+    # back to the default.
+    limit = DEFAULT_PAGE_SIZE if limit in (None, "") else int(limit)
+    limit = max(1, min(limit, MAX_PAGE_SIZE))
+    offset = 0 if offset in (None, "") else max(0, int(offset))
+
+    rows, total = user_repository.list_users(
+        db, search=(search or "").strip() or None, role=role or None,
+        limit=limit, offset=offset,
+    )
+    return {
+        "users": [dict(u) for u in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+def list_employees(db, session_user):
+    if session_user["role"] != "admin":
+        raise PermissionError("Only admins can list employees.")
+    return [dict(u) for u in user_repository.list_employees(db)]

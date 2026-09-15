@@ -89,7 +89,8 @@ election-system/
 │   ├── outbox_relay.py          # Publishes committed events to Kafka
 │   └── results_consumer.py      # Debounced materialized view refresh
 ├── scripts/
-│   └── load_test.py             # Concurrent voting load test
+│   ├── load_test.py             # Concurrent voting load test
+│   └── enrich_demo_data.py      # Roles, staff accounts and name variety
 ├── frontend/                    # Served directly by Flask (send_from_directory)
 │   ├── login.html
 │   ├── dashboard.html / dashboard.js
@@ -114,7 +115,7 @@ election-system/
 │   ├── import_election_data.py  # Bulk loader for the historical dataset
 │   └── seed.py                  # Demo accounts + one active election
 ├── tests/
-│   └── test_*.py                # 32 unit tests (service layer)
+│   └── test_*.py                # 45 unit tests (service layer)
 ├── observability/
 │   ├── prometheus.yml           # Scrape config
 │   └── grafana/                 # Provisioned datasource + dashboard
@@ -304,7 +305,8 @@ draft → active → completed
 | GET | `/api/societies` | Admin/Employee | List societies |
 | POST | `/api/societies` | Admin | Create society |
 | GET | `/api/societies/assignments` | Admin | List employee–society assignments |
-| GET | `/api/users` | Admin | List all users |
+| GET | `/api/users` | Admin | List users — paged (`search`, `role`, `limit`, `offset`) |
+| GET | `/api/users/employees` | Admin | List employees (for the assignment picker) |
 | POST | `/api/users` | Admin | Create user |
 | PUT | `/api/users/<id>` | Admin | Update user (status, role, etc.) |
 | POST | `/api/users/<id>/societies` | Admin | Assign employee to society |
@@ -388,6 +390,19 @@ docker compose exec app python database/seed.py
 `--reset` truncates all data tables first, since the source files carry explicit
 primary keys. Run `seed.py` afterwards to re-create the demo accounts. The import
 takes roughly 75 seconds and uses `COPY` rather than row-by-row inserts.
+
+Finally, make the dataset usable as a demonstration:
+
+```bash
+python scripts/enrich_demo_data.py
+```
+
+Everyone in the source data is a plain member drawn from a pool of 177 first
+names and 256 surnames, so no society has officers or staff and the member list
+repeats the same handful of surnames. This script gives each society officers,
+creates the staff accounts that run elections, and widens the name pool. It is
+deterministic and re-runnable, and it touches only names, roles and assignments
+— every vote, ballot and election is left exactly as imported.
 
 The app is now served at `http://localhost:3000`.
 
@@ -492,13 +507,14 @@ docker run --rm --network multi-tenant-election-management-platform-main_default
   election-app:dev python -m pytest tests/ -q
 ```
 
-32 unit tests covering the service layer:
+45 unit tests covering the service layer:
 
 | File | Tests | Covers |
 |---|---|---|
 | `test_auth_service.py` | 7 | Login and password verification |
 | `test_election_service.py` | 10 | Role-based election listing and ballot access |
 | `test_voting_service.py` | 15 | Vote submission rules, transaction contract, outbox |
+| `test_user_service.py` | 13 | Admin access, page-size clamping, search and role filters |
 
-Repositories and the remaining services (`ballot`, `results`, `society`, `user`) are
-not yet covered.
+Repositories and the remaining services (`ballot`, `results`, `society`) are not
+yet covered.

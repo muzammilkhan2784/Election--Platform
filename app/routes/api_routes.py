@@ -617,11 +617,35 @@ def list_users():
 
     db = get_db()
     try:
-        users = user_service.list_users(db, _session_user())
+        result = user_service.list_users(
+            db,
+            _session_user(),
+            search=request.args.get("search"),
+            role=request.args.get("role"),
+            limit=request.args.get("limit", 50),
+            offset=request.args.get("offset", 0),
+        )
+    except PermissionError as e:
+        return jsonify({"message": str(e)}), 403
+    except (TypeError, ValueError):
+        return jsonify({"message": "limit and offset must be numbers."}), 400
+
+    return jsonify(result), 200
+
+
+@api_bp.route("/users/employees")
+def list_employees():
+    err = _require_login()
+    if err:
+        return err
+
+    db = get_db()
+    try:
+        employees = user_service.list_employees(db, _session_user())
     except PermissionError as e:
         return jsonify({"message": str(e)}), 403
 
-    return jsonify(users), 200
+    return jsonify(employees), 200
 
 
 @api_bp.route("/users", methods=["POST"])

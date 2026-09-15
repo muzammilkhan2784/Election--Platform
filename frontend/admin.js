@@ -36,33 +36,112 @@ async function api(url, options = {}) {
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
+// The roster is tens of thousands of rows, so the server pages it and this
+// only ever holds the page on screen.
+const USERS_PAGE_SIZE = 25;
+const userQuery = { search: "", role: "", offset: 0, total: 0 };
+let searchDebounce;
+
 async function loadUsers() {
-  allUsers = await api("/users");
+  const params = new URLSearchParams({
+    limit: USERS_PAGE_SIZE,
+    offset: userQuery.offset,
+  });
+  if (userQuery.search) params.set("search", userQuery.search);
+  if (userQuery.role) params.set("role", userQuery.role);
+
+  const result = await api(`/users?${params}`);
+  allUsers = result.users;
+  userQuery.total = result.total;
+
   const tbody = document.getElementById("users-table-body");
+
+  if (!allUsers.length) {
+    tbody.innerHTML = `
+      <tr><td colspan="6" class="py-10 text-center text-ink-500 text-[14px]">
+        No users match that search.
+      </td></tr>`;
+    renderUsersPager();
+    return;
+  }
+
   tbody.innerHTML = allUsers.map((u) => `
-    <tr class="hover:bg-ink-50">
-      <td class="text-ink-800">${u.first_name || ""} ${u.last_name || ""}</td>
+    <tr>
+      <td class="text-ink-800 font-medium">${u.first_name || ""} ${u.last_name || ""}</td>
       <td class="text-ink-500">${u.email}</td>
       <td>
-        <span class="px-2 py-0.5 rounded-full text-xs font-medium ${roleColor(u.role)}">${u.role}</span>
+        <span class="px-2 py-0.5 rounded-full text-[11.5px] font-semibold border ${roleColor(u.role)}">${u.role}</span>
       </td>
-      <td class="text-ink-600 max-w-[220px] truncate" title="${u.society_name || ""}">${u.society_name || "—"}</td>
+      <td class="text-ink-600 max-w-[220px] truncate" title="${u.society_name || ""}">${u.society_name || "\u2014"}</td>
       <td>
-        <span class="px-2 py-0.5 rounded-full text-xs font-medium ${u.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}">${u.status}</span>
+        <span class="px-2 py-0.5 rounded-full text-[11.5px] font-semibold border ${u.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}">${u.status}</span>
       </td>
       <td>
         ${u.status === "active"
-          ? `<button onclick="disableUser(${u.user_id})" class="text-xs text-red-500 hover:underline">Disable</button>`
-          : `<button onclick="enableUser(${u.user_id})" class="text-xs text-green-600 hover:underline">Enable</button>`
+          ? `<button onclick="disableUser(${u.user_id})" class="text-[13px] font-medium text-red-600 hover:underline">Disable</button>`
+          : `<button onclick="enableUser(${u.user_id})" class="text-[13px] font-medium text-emerald-700 hover:underline">Enable</button>`
         }
       </td>
     </tr>
   `).join("");
+
+  renderUsersPager();
 }
 
+function renderUsersPager() {
+  const el = document.getElementById("users-pager");
+  if (!el) return;
+  const { offset, total } = userQuery;
+  const from = total === 0 ? 0 : offset + 1;
+  const to = Math.min(offset + USERS_PAGE_SIZE, total);
+  const canPrev = offset > 0;
+  const canNext = to < total;
+
+  const btn = (label, enabled, action) => `
+    <button ${enabled ? `onclick="${action}"` : "disabled"}
+      class="px-3 py-1.5 rounded-lg border text-[13px] font-medium transition-colors
+        ${enabled
+          ? "border-ink-200 text-ink-700 hover:bg-ink-50 hover:border-ink-300"
+          : "border-ink-100 text-ink-300 cursor-not-allowed"}">${label}</button>`;
+
+  el.innerHTML = `
+    <p class="text-[13px] text-ink-500 tabular">
+      ${from.toLocaleString()}\u2013${to.toLocaleString()} of ${total.toLocaleString()}
+    </p>
+    <div class="flex gap-2">
+      ${btn("Previous", canPrev, "usersPage(-1)")}
+      ${btn("Next", canNext, "usersPage(1)")}
+    </div>`;
+}
+
+window.usersPage = (direction) => {
+  userQuery.offset = Math.max(0, userQuery.offset + direction * USERS_PAGE_SIZE);
+  loadUsers();
+};
+
+window.onUsersSearch = (value) => {
+  // Debounced so typing does not fire a query per keystroke.
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    userQuery.search = value;
+    userQuery.offset = 0;
+    loadUsers();
+  }, 250);
+};
+
+window.onUsersRoleFilter = (value) => {
+  userQuery.role = value;
+  userQuery.offset = 0;
+  loadUsers();
+};
+
 function roleColor(role) {
-  return { admin: "bg-red-100 text-red-700", employee: "bg-blue-100 text-blue-700",
-           officer: "bg-purple-100 text-purple-700", member: "bg-green-100 text-green-700" }[role] || "bg-ink-100 text-ink-500";
+  return {
+    admin: "bg-red-50 text-red-700 border-red-200",
+    employee: "bg-brand-50 text-brand-700 border-brand-200",
+    officer: "bg-purple-50 text-purple-700 border-purple-200",
+    member: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  }[role] || "bg-ink-100 text-ink-500 border-ink-200";
 }
 
 window.disableUser = async (userId) => {
@@ -160,10 +239,11 @@ async function loadAssignments() {
     </tr>
   `).join("");
 
-  // Populate employee dropdown with only employees
-  const employees = allUsers.filter((u) => u.role === "employee");
+  // Employees come from a dedicated endpoint: the users table is paged now,
+  // so filtering the page on screen would miss most of them.
+  const employees = await api("/users/employees");
   document.getElementById("assign-employee").innerHTML =
-    `<option value="">Select Employee</option>` +
+    `<option value="">Select employee</option>` +
     employees.map((u) => `<option value="${u.user_id}">${u.first_name} ${u.last_name}</option>`).join("");
 }
 

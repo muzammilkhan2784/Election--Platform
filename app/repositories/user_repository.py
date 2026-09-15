@@ -38,15 +38,59 @@ def get_user_by_id(db, user_id):
         return cur.fetchone()
 
 
-def list_users(db):
+def list_users(db, search=None, role=None, limit=50, offset=0):
+    """
+    A page of users, newest-relevant first, optionally filtered.
+
+    The roster runs to tens of thousands of rows, so this pages in the database
+    rather than returning everything and letting the browser cope.
+    """
+    where, params = [], []
+    if search:
+        # Match against the full name as displayed, so "ada lovelace" works as
+        # well as either half on its own.
+        where.append(
+            "(u.first_name ILIKE %s OR u.last_name ILIKE %s OR u.email ILIKE %s"
+            " OR (u.first_name || ' ' || u.last_name) ILIKE %s)"
+        )
+        like = f"%{search}%"
+        params.extend([like, like, like, like])
+    if role:
+        where.append("u.role = %s")
+        params.append(role)
+
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+
     with db.cursor() as cur:
+        cur.execute(f'SELECT COUNT(*) AS total FROM "user" u {clause}', params)
+        total = cur.fetchone()["total"]
+
         cur.execute(
-            """
+            f"""
             SELECT u.user_id, u.email, u.first_name, u.last_name,
                    u.role, u.status, u.society_id, s.name AS society_name
             FROM "user" u
             LEFT JOIN society s ON s.society_id = u.society_id
-            ORDER BY u.role, u.last_name
+            {clause}
+            -- Newest first rather than alphabetical: sorting 20,000 people by
+            -- surname puts a screenful of the same name on every page, and
+            -- search is the right tool for finding a specific person.
+            ORDER BY u.user_id DESC
+            LIMIT %s OFFSET %s
+            """,
+            params + [limit, offset],
+        )
+        return cur.fetchall(), total
+
+
+def list_employees(db):
+    """Every employee, unpaged — used to populate the assignment picker."""
+    with db.cursor() as cur:
+        cur.execute(
+            """
+            SELECT user_id, email, first_name, last_name, role, status
+            FROM "user" WHERE role = 'employee'
+            ORDER BY last_name, first_name
             """
         )
         return cur.fetchall()
