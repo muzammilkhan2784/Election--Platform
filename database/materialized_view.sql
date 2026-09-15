@@ -8,7 +8,7 @@
 --   rows directly instead of re-running the aggregation.
 --
 -- How to apply:
---   Run this file AFTER DDL_FooFighters.sql:
+--   Run this file AFTER schema.sql:
 --     psql -U <user> -d <db> -f database/materialized_view.sql
 --
 --   Then call the stored procedure any time votes are added or when an

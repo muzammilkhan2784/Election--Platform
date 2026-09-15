@@ -15,8 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Run as an unprivileged user rather than root.
-RUN useradd --create-home appuser && chown -R appuser:appuser /app
+# Run as an unprivileged user rather than root. The prometheus directory is
+# where Gunicorn workers pool their metrics so /metrics can aggregate across them.
+RUN useradd --create-home appuser \
+    && mkdir -p /tmp/prometheus \
+    && chown -R appuser:appuser /app /tmp/prometheus
 USER appuser
 
 EXPOSE 3000

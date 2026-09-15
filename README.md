@@ -15,6 +15,7 @@ Runs locally via Docker Compose.
 | Frontend | Vanilla JS + Tailwind CSS |
 | Auth | Flask sessions + bcrypt |
 | Events | Apache Kafka 3.9 (KRaft mode) |
+| Monitoring | Prometheus + Grafana |
 | Local infrastructure | Docker Compose |
 | Server | Gunicorn (production) |
 
@@ -114,8 +115,11 @@ election-system/
 │   └── seed.py                  # Demo accounts + one active election
 ├── tests/
 │   └── test_*.py                # 32 unit tests (service layer)
+├── observability/
+│   ├── prometheus.yml           # Scrape config
+│   └── grafana/                 # Provisioned datasource + dashboard
 ├── Dockerfile                   # App image (production + dev targets)
-├── docker-compose.yml           # PostgreSQL + Kafka + app + workers
+├── docker-compose.yml           # Postgres + Kafka + app + workers + monitoring
 ├── .dockerignore
 ├── run.py                       # Start the app for development
 ├── server.py                    # Start the app in production (via Gunicorn)
@@ -221,6 +225,39 @@ accounts for the observed throughput. Adding workers is the lever there.
 
 ---
 
+## Observability
+
+Prometheus scrapes the app and both workers; Grafana ships with a provisioned
+dashboard, so `docker compose up` gives you working graphs with no setup.
+
+| Service | URL |
+|---|---|
+| Grafana dashboard | http://localhost:3001 |
+| Prometheus | http://localhost:9090 |
+| App metrics | http://localhost:3000/metrics |
+
+### What is measured
+
+| Metric | Why it matters |
+|---|---|
+| `election_http_request_duration_seconds` | Request latency histogram, labelled by Flask rule rather than raw path so 2,000 elections do not become 2,000 time series |
+| `election_votes_submitted_total` | Accepted ballots |
+| `election_outbox_pending_events` | Backlog depth — events written but not yet on the broker |
+| `election_outbox_oldest_pending_seconds` | **The health signal.** Depth alone is ambiguous: a large backlog draining fast is fine, a small one that never empties is not. Age is what says whether the relay is keeping up |
+| `election_results_refresh_duration_seconds` | Refresh cost, which scales with vote volume |
+| `election_results_refreshes_total` | Refresh count — compare against events consumed to see the debounce working |
+
+The dashboard's "Pipeline throughput" panel plots events published against
+refreshes performed. Under load the first climbs with traffic while the second
+stays flat, which is the entire argument for the design in one graph.
+
+Gunicorn runs multiple workers, so the app uses `prometheus_client`'s
+multiprocess mode — workers pool their counters in a shared directory
+(`PROMETHEUS_MULTIPROC_DIR`) and `/metrics` aggregates across them. Without it,
+each scrape would report whichever worker happened to answer.
+
+---
+
 ## Roles & Access
 
 | Role | Access |
@@ -320,6 +357,8 @@ This starts five containers:
 | `election_app` | Flask app under Gunicorn |
 | `election_relay` | Publishes outbox events to Kafka |
 | `election_results_consumer` | Refreshes results views on a debounce |
+| `election_prometheus` | Scrapes metrics from the app and workers |
+| `election_grafana` | Dashboard at http://localhost:3001 |
 
 The app and workers wait for their dependencies to report healthy before starting.
 

@@ -63,6 +63,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       SECRET_KEY: ${SECRET_KEY}
       FLASK_ENV: ${FLASK_ENV}
+      # Gunicorn runs several workers; prometheus_client aggregates their
+      # counters through this shared directory.
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
     ports:
       - "3000:3000"
     volumes:
@@ -114,6 +117,41 @@ services:
       kafka:
         condition: service_healthy
 
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: election_prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - election_promdata:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: election_grafana
+    restart: unless-stopped
+    environment:
+      # Local development only: the dashboard is read-only infrastructure, so
+      # anonymous viewing avoids a login prompt for something with no secrets.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - election_grafanadata:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   election_pgdata:
   election_kafkadata:
+  election_promdata:
+  election_grafanadata:

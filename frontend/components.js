@@ -54,7 +54,7 @@ export function renderNavbar(opts = {}) {
   target.innerHTML = `
     <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <img src="./applogo.png" alt="American Dream Election logo" class="h-10 w-auto" />
+        <img src="./logo.jpeg" alt="American Dream Election logo" class="h-10 w-auto" />
         <span class="text-lg font-bold text-gray-800">${title}</span>
       </div>
       ${userSection}
@@ -129,7 +129,7 @@ export function renderFooter() {
 
   target.innerHTML = `
     <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <p class="text-sm text-gray-400">&copy; ${year} American Dream Election System &mdash; ISTE-432 FooFighters</p>
+      <p class="text-sm text-gray-400">&copy; ${year} American Dream Election System</p>
       <div class="flex gap-4 text-sm">
         <a href="#" class="text-gray-400 hover:text-gray-600 transition">Help</a>
         <a href="#" class="text-gray-400 hover:text-gray-600 transition">Privacy</a>

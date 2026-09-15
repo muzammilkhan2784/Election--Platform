@@ -55,6 +55,26 @@ def mark_published(db, event_ids):
         )
 
 
+def pending_stats(db):
+    """
+    Backlog depth and the age of the oldest unpublished event.
+
+    Depth alone is ambiguous — a large backlog draining quickly is healthy while
+    a small one that never empties is not. The age of the oldest row is what
+    actually says whether the relay is keeping up.
+    """
+    with db.cursor() as cur:
+        cur.execute(
+            """
+            SELECT COUNT(*) AS pending,
+                   COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(created_at))), 0) AS oldest_seconds
+            FROM event_outbox
+            WHERE published_at IS NULL
+            """
+        )
+        return cur.fetchone()
+
+
 def delete_published_before(db, cutoff):
     """Drop already-published rows older than cutoff so the table stays bounded."""
     with db.cursor() as cur:

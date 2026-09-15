@@ -4,3 +4,4 @@ python-dotenv
 bcrypt
 gunicorn
 confluent-kafka
+prometheus-client

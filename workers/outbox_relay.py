@@ -24,11 +24,30 @@ from functools import partial
 import psycopg
 from confluent_kafka import Producer
 from dotenv import load_dotenv
+from prometheus_client import Counter, Gauge, start_http_server
 from psycopg.rows import dict_row
 
 from app.repositories import outbox_repository
 
 load_dotenv()
+
+METRICS_PORT = int(os.getenv("METRICS_PORT", "9101"))
+
+EVENTS_PUBLISHED = Counter(
+    "election_outbox_published_total", "Events successfully published to Kafka"
+)
+PUBLISH_FAILURES = Counter(
+    "election_outbox_publish_failures_total", "Events the broker did not acknowledge"
+)
+PENDING_EVENTS = Gauge(
+    "election_outbox_pending_events", "Events written but not yet published"
+)
+# The headline health signal: a backlog that is draining is fine, one that keeps
+# ageing is not.
+OLDEST_PENDING = Gauge(
+    "election_outbox_oldest_pending_seconds",
+    "Age of the oldest unpublished event",
+)
 
 BATCH_SIZE = int(os.getenv("RELAY_BATCH_SIZE", "500"))
 IDLE_SLEEP_SECONDS = float(os.getenv("RELAY_IDLE_SLEEP", "1.0"))
@@ -100,8 +119,10 @@ def publish_batch(producer, rows):
     producer.flush(30)
 
     if failed:
+        PUBLISH_FAILURES.inc(len(failed))
         log.error("%d events failed to publish, will retry: %s",
                   len(failed), list(failed.items())[:3])
+    EVENTS_PUBLISHED.inc(len(delivered))
     return delivered
 
 
@@ -109,9 +130,11 @@ def run():
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
 
+    start_http_server(METRICS_PORT)
     producer = build_producer()
     conn = connect_db()
-    log.info("relay started (batch=%d, idle_sleep=%.1fs)", BATCH_SIZE, IDLE_SLEEP_SECONDS)
+    log.info("relay started (batch=%d, idle_sleep=%.1fs, metrics on :%d)",
+             BATCH_SIZE, IDLE_SLEEP_SECONDS, METRICS_PORT)
 
     published_total = 0
     last_cleanup = time.monotonic()
@@ -132,6 +155,11 @@ def run():
                                  len(delivered), published_total)
             # Committed here. Rows that failed to publish still have
             # published_at NULL and are retried on the next pass.
+
+            with conn.transaction():
+                stats = outbox_repository.pending_stats(conn)
+                PENDING_EVENTS.set(stats["pending"])
+                OLDEST_PENDING.set(float(stats["oldest_seconds"]))
 
             if not rows:
                 time.sleep(IDLE_SLEEP_SECONDS)
