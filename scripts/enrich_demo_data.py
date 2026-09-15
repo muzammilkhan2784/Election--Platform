@@ -31,6 +31,7 @@ SEED = 20260915  # fixed so repeated runs produce identical data
 
 OFFICERS_PER_SOCIETY = 3
 EMPLOYEE_COUNT = 18
+ADMIN_COUNT = 3
 SOCIETIES_PER_EMPLOYEE = (3, 7)
 
 FIRST_NAMES = """
@@ -178,24 +179,32 @@ def assign_roles(conn, rng):
             sys.exit("demo accounts missing; run database/seed.py first")
         pw_hash = row["password_hash"]
 
-        employees = []
         used = set()
-        for _ in range(EMPLOYEE_COUNT):
-            while True:
-                first = rng.choice(FIRST_NAMES)
-                last = rng.choice(LAST_NAMES)
-                email = f"{first.lower()}.{last.lower()}@staff.americandream.test"
-                if email not in used:
-                    used.add(email)
-                    break
-            cur.execute(
-                """INSERT INTO "user"
-                       (society_id, email, password_hash, first_name, last_name, role, status)
-                   VALUES (NULL, %s, %s, %s, %s, 'employee', 'active')
-                   RETURNING user_id""",
-                (email, pw_hash, first, last),
-            )
-            employees.append(cur.fetchone()["user_id"])
+
+        def create_staff(role, count):
+            """Create `count` staff accounts with distinct names and emails."""
+            ids = []
+            for _ in range(count):
+                while True:
+                    first = rng.choice(FIRST_NAMES)
+                    last = rng.choice(LAST_NAMES)
+                    email = f"{first.lower()}.{last.lower()}@staff.americandream.test"
+                    if email not in used:
+                        used.add(email)
+                        break
+                cur.execute(
+                    """INSERT INTO "user"
+                           (society_id, email, password_hash, first_name, last_name, role, status)
+                       VALUES (NULL, %s, %s, %s, %s, %s, 'active')
+                       RETURNING user_id""",
+                    (email, pw_hash, first, last, role),
+                )
+                ids.append(cur.fetchone()["user_id"])
+            return ids
+
+        employees = create_staff("employee", EMPLOYEE_COUNT)
+        # Extra administrators so the admin screens are not a single account.
+        admins = create_staff("admin", ADMIN_COUNT)
 
         assignments = []
         for user_id in employees:
@@ -208,7 +217,7 @@ def assign_roles(conn, rng):
             assignments,
         )
 
-    return len(officer_ids), len(employees), len(assignments)
+    return len(officer_ids), len(employees), len(assignments), len(admins)
 
 
 def main():
@@ -225,9 +234,10 @@ def main():
             renamed, firsts, lasts = diversify_names(conn, rng)
             print(f"  names       {renamed:>6,} users renamed "
                   f"({firsts} first x {lasts} last names available)")
-        officers, employees, assignments = assign_roles(conn, rng)
+        officers, employees, assignments, admins = assign_roles(conn, rng)
         print(f"  officers    {officers:>6,} across all societies")
         print(f"  employees   {employees:>6,} with {assignments} society assignments")
+        print(f"  admins      {admins:>6,} additional administrator accounts")
 
     with conn.cursor() as cur:
         cur.execute('SELECT role, COUNT(*) AS n FROM "user" GROUP BY role ORDER BY n DESC')
