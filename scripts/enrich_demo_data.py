@@ -31,7 +31,7 @@ SEED = 20260915  # fixed so repeated runs produce identical data
 
 OFFICERS_PER_SOCIETY = 3
 EMPLOYEE_COUNT = 18
-ADMIN_COUNT = 3
+ADMIN_COUNT = 6
 SOCIETIES_PER_EMPLOYEE = (3, 7)
 
 FIRST_NAMES = """
