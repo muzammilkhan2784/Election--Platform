@@ -1,8 +1,83 @@
 # American Dream Election System
 
-A multi-tenant web platform that runs elections for professional societies (IEEE, ACM, and others), built with Flask and PostgreSQL. Each society is an isolated tenant: its members, elections, ballots, and results are never visible to another society.
+A multi-tenant web platform that runs elections for professional societies. Each
+society is an isolated tenant: its members, elections, ballots and results are
+never visible to another society.
 
-Runs locally via Docker Compose.
+Built with Flask and PostgreSQL, with vote events flowing through Kafka so that
+publishing results never slows down voting. The whole stack — database, broker,
+application, background workers and monitoring — starts with one command.
+
+```bash
+docker compose up -d --build
+```
+
+**Running against 20,000 members, 2,000 elections, 500,000 ballots and 1.36M
+individual vote records.**
+
+---
+
+## Screens
+
+### Results
+
+Tallies are read from pre-computed materialized views. Bars are scaled against
+the leader rather than the total, so a race between several candidates stays
+readable.
+
+![Election results](docs/screenshots/03-results.png)
+
+### Voting
+
+Ballots adapt to each office: single-choice or multi-seat, with the selected row
+highlighted rather than just a small radio button.
+
+![Ballot](docs/screenshots/08-ballot.png)
+
+### Dashboard
+
+Each role sees a different dashboard. Admins get system tools; members see only
+elections in their own society.
+
+![Admin dashboard](docs/screenshots/02-dashboard-admin.png)
+
+### Administration
+
+The member roster is paged and searched in the database — returning all 20,000
+rows took 4.3MB, a page takes 5.4KB.
+
+![Admin users](docs/screenshots/04-admin-users.png)
+
+![Searching the roster](docs/screenshots/05-admin-search.png)
+
+Employees are assigned to the societies whose elections they run.
+
+![Employee assignments](docs/screenshots/06-admin-assignments.png)
+
+System-wide and per-society reporting across all 80 societies.
+
+![Reports](docs/screenshots/07-admin-reports.png)
+
+### Sign in
+
+![Sign in](docs/screenshots/01-login.png)
+
+---
+
+## The event pipeline, observed
+
+This is the design argument in one picture. During a load test of 500 concurrent
+votes, **events published** (green) climbs with traffic while **refreshes**
+(yellow) stays flat — because the consumer collapses any number of vote events
+into at most one materialized view refresh per interval.
+
+![Grafana dashboard](docs/screenshots/09-grafana.png)
+
+Those 500 votes produced 500 events and **5 refreshes**. Refreshing on every vote
+would have cost roughly 500 x 650ms of aggregation; it cost 3.5 seconds. The
+outbox backlog stayed at zero and no event was lost.
+
+See [Event Pipeline](#event-pipeline) for why this is necessary and how it works.
 
 ---
 
@@ -90,7 +165,8 @@ election-system/
 │   └── results_consumer.py      # Debounced materialized view refresh
 ├── scripts/
 │   ├── load_test.py             # Concurrent voting load test
-│   └── enrich_demo_data.py      # Roles, staff accounts and name variety
+│   ├── enrich_demo_data.py      # Roles, staff accounts and name variety
+│   └── capture_screenshots.py   # Regenerates the README screenshots
 ├── frontend/                    # Served directly by Flask (send_from_directory)
 │   ├── login.html
 │   ├── dashboard.html / dashboard.js
@@ -116,6 +192,7 @@ election-system/
 │   └── seed.py                  # Demo accounts + one active election
 ├── tests/
 │   └── test_*.py                # 45 unit tests (service layer)
+├── docs/screenshots/            # README images (regenerated, not hand-taken)
 ├── observability/
 │   ├── prometheus.yml           # Scrape config
 │   └── grafana/                 # Provisioned datasource + dashboard

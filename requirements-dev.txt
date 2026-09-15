@@ -1,2 +1,5 @@
 -r requirements.txt
 pytest
+# Used only by scripts/capture_screenshots.py to regenerate the README images.
+# After installing, run: python -m playwright install chromium
+playwright
