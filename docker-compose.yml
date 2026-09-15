@@ -17,5 +17,29 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    build: .
+    container_name: election_app
+    restart: unless-stopped
+    environment:
+      # Inside the compose network the database is reached by service name on
+      # its internal port. The 5433 mapping above only applies to the host.
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_ENV: ${FLASK_ENV}
+    ports:
+      - "3000:3000"
+    volumes:
+      # Read-only so the importer can read the dataset without it being baked
+      # into the image.
+      - ./data:/app/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   election_pgdata:

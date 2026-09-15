@@ -1,0 +1,20 @@
+# Local virtualenv — the image installs its own dependencies
+venv/
+.venv/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Secrets — supplied at runtime via docker-compose, never baked into the image
+.env
+
+# Source dataset — mounted as a read-only volume instead, to keep the image
+# from carrying ~29MB of .psv files
+data/

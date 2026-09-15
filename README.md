@@ -102,11 +102,12 @@ election-system/
 │   ├── schema.sql               # Schema (tables, constraints, indexes)
 │   ├── materialized_view.sql    # Materialized views + stored procedure
 │   ├── import_election_data.py  # Bulk loader for the historical dataset
-│   ├── migrations/              # Migration scripts
 │   └── seed.py                  # Demo accounts + one active election
 ├── tests/
 │   └── test_*.py                # 29 unit tests (service layer)
-├── docker-compose.yml           # Local PostgreSQL
+├── Dockerfile                   # App image (production + dev targets)
+├── docker-compose.yml           # PostgreSQL + app
+├── .dockerignore
 ├── run.py                       # Start the app for development
 ├── server.py                    # Start the app in production (via Gunicorn)
 ├── requirements.txt
@@ -174,20 +175,10 @@ draft → active → completed
 
 ## Setup
 
-### 1. Install
+### 1. Configure environment
 
-```bash
-git clone <repo-url>
-cd election-system
-python -m venv venv
-source venv/Scripts/activate      # Windows; use venv/bin/activate on macOS/Linux
-pip install -r requirements-dev.txt
-```
-
-### 2. Configure environment
-
-Create a `.env` file in the project root (never commit this). Docker Compose and the
-Flask app both read it, so the credentials stay in one place:
+Create a `.env` file in the project root (never commit this). Docker Compose and
+the app both read it, so credentials live in one place:
 
 ```
 DB_HOST=localhost
@@ -207,58 +198,80 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 > **Port note:** `5433` is used instead of the default `5432` to avoid colliding
 > with any PostgreSQL already installed on the host machine. Change it if `5433`
-> is taken.
+> is taken. Inside the Docker network the app reaches the database at
+> `postgres:5432` — the `5433` mapping only applies from your machine.
 
-### 3. Start PostgreSQL
+### 2. Start the stack
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-### 4. Create the schema
+This starts two containers: `election_postgres` (PostgreSQL 16) and
+`election_app` (the Flask app under Gunicorn). The app waits for the database
+to report healthy before starting.
+
+### 3. Create the schema
 
 ```bash
 docker compose exec -T postgres psql -U appuser -d american_dream < database/schema.sql
 docker compose exec -T postgres psql -U appuser -d american_dream < database/materialized_view.sql
 ```
 
-### 5. Load data
+### 4. Load data
 
 Demo accounts plus one active election to vote in:
 
 ```bash
-python database/seed.py
+docker compose exec app python database/seed.py
 ```
 
 Optionally, load the full historical dataset (20,000 members, 2,000 elections,
 500,000 ballots, 1.36M individual selections) from the files in `data/`:
 
 ```bash
-python database/import_election_data.py --reset
-python database/seed.py
+docker compose exec app python database/import_election_data.py --reset
+docker compose exec app python database/seed.py
 ```
 
 `--reset` truncates all data tables first, since the source files carry explicit
 primary keys. Run `seed.py` afterwards to re-create the demo accounts. The import
-takes roughly 90 seconds and uses `COPY` rather than row-by-row inserts.
+takes roughly 75 seconds and uses `COPY` rather than row-by-row inserts.
 
-### 6. Run
+The app is now served at `http://localhost:3000`.
+
+---
+
+## Local Development
+
+The containers are enough to run the app, but a local virtualenv is useful for
+running tests and for Flask's auto-reloading dev server:
 
 ```bash
-# Development — what you use locally
+python -m venv venv
+source venv/Scripts/activate      # Windows; use venv/bin/activate on macOS/Linux
+pip install -r requirements-dev.txt
 python run.py
 ```
 
-The app is served at `http://localhost:3000`.
+`run.py` connects to the containerized database over the `5433` host mapping, so
+`docker compose up -d postgres` is enough if you only want the database.
 
-For production, `server.py` is the entry point, run behind Gunicorn:
+### Container images
+
+The `Dockerfile` has two targets:
+
+| Target | Contains | Used for |
+|---|---|---|
+| `production` (default) | `requirements.txt` only, runs Gunicorn | `docker compose up` |
+| `dev` | adds `requirements-dev.txt` (pytest) | running tests in a container |
 
 ```bash
-gunicorn -w 2 -b 0.0.0.0:3000 server:application
+docker build --target dev -t election-app:dev .
 ```
 
-Gunicorn is Linux/macOS only, so on Windows use `run.py` locally and Gunicorn
-when deploying to a server.
+Both run as an unprivileged `appuser`, not root. `data/` is mounted read-only
+rather than copied into the image, so the image stays lean.
 
 ---
 
@@ -312,8 +325,20 @@ account, since the source data has no creator column and `election.created_by` i
 
 ## Running Tests
 
+Locally, with the virtualenv active:
+
 ```bash
 python -m pytest tests/ -v
+```
+
+Or in a container, using the `dev` image:
+
+```bash
+docker build --target dev -t election-app:dev .
+docker run --rm --network multi-tenant-election-management-platform-main_default \
+  -e DB_HOST=postgres -e DB_PORT=5432 -e DB_NAME=american_dream \
+  -e DB_USER=appuser -e DB_PASSWORD=devpassword \
+  election-app:dev python -m pytest tests/ -q
 ```
 
 29 unit tests covering the service layer:
