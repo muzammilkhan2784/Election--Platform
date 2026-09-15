@@ -1,83 +1,49 @@
 # American Dream Election System
 
-A multi-tenant web platform that runs elections for professional societies. Each
-society is an isolated tenant: its members, elections, ballots and results are
-never visible to another society.
+Runs elections for professional societies like IEEE and ACM. Every society is a
+separate tenant, so its members, elections and results are never visible to any
+other society.
 
-Built with Flask and PostgreSQL, with vote events flowing through Kafka so that
-publishing results never slows down voting. The whole stack — database, broker,
-application, background workers and monitoring — starts with one command.
+Flask and PostgreSQL, with vote events going through Kafka so that publishing
+results doesn't slow down voting. Database, broker, app, workers and monitoring
+all start with one command.
 
 ```bash
 docker compose up -d --build
 ```
 
-**Running against 20,000 members, 2,000 elections, 500,000 ballots and 1.36M
-individual vote records.**
+Loaded with 20,000 members, 2,000 elections, 500,000 ballots and 1.36M vote
+records.
 
 ---
 
-## Screens
+## What it looks like
 
-### Results
-
-Tallies are read from pre-computed materialized views. Bars are scaled against
-the leader rather than the total, so a race between several candidates stays
-readable.
+Results are read from pre-computed materialized views. Bars scale against the
+leader, not the total. With four or five candidates, scaling to the total makes
+every bar a stub and you can't compare them.
 
 ![Election results](docs/screenshots/03-results.png)
 
-### Voting
-
-Ballots adapt to each office: single-choice or multi-seat, with the selected row
-highlighted rather than just a small radio button.
-
-![Ballot](docs/screenshots/08-ballot.png)
-
-### Dashboard
-
-Each role sees a different dashboard. Admins get system tools; members see only
-elections in their own society.
-
-![Admin dashboard](docs/screenshots/02-dashboard-admin.png)
-
-### Administration
-
-The member roster is paged and searched in the database — returning all 20,000
-rows took 4.3MB, a page takes 5.4KB.
-
-![Admin users](docs/screenshots/04-admin-users.png)
+The member roster is paged and searched in the database. Returning all 20,000
+rows was a 4.3MB response; a page is 5.4KB.
 
 ![Searching the roster](docs/screenshots/05-admin-search.png)
 
-Employees are assigned to the societies whose elections they run.
+## The pipeline under load
 
-![Employee assignments](docs/screenshots/06-admin-assignments.png)
-
-System-wide and per-society reporting across all 80 societies.
-
-![Reports](docs/screenshots/07-admin-reports.png)
-
-### Sign in
-
-![Sign in](docs/screenshots/01-login.png)
-
----
-
-## The event pipeline, observed
-
-This is the design argument in one picture. During a load test of 500 concurrent
-votes, **events published** (green) climbs with traffic while **refreshes**
-(yellow) stays flat — because the consumer collapses any number of vote events
-into at most one materialized view refresh per interval.
+This is the whole point of the design. Running 500 concurrent votes,
+**events published** (green) climbs with traffic while **refreshes** (yellow)
+stays flat. The consumer batches any number of vote events into at most one
+refresh per interval.
 
 ![Grafana dashboard](docs/screenshots/09-grafana.png)
 
-Those 500 votes produced 500 events and **5 refreshes**. Refreshing on every vote
-would have cost roughly 500 x 650ms of aggregation; it cost 3.5 seconds. The
-outbox backlog stayed at zero and no event was lost.
+500 votes, 500 events, **5 refreshes**. Refreshing per vote would have been
+about 500 x 650ms of aggregation. It took 3.5 seconds. Outbox backlog stayed at
+zero and nothing was lost.
 
-See [Event Pipeline](#event-pipeline) for why this is necessary and how it works.
+[Event Pipeline](#event-pipeline) covers why it's built this way.
 
 ---
 
@@ -112,9 +78,9 @@ app/repositories/             ← Data layer: raw parameterized SQL only
 PostgreSQL
 ```
 
-**Transaction boundaries** are owned exclusively by the route layer using psycopg3's `with db:` context manager, which auto-commits on success and rolls back on any exception. Services never call `commit()` or `rollback()` — they let exceptions propagate so the route's context manager can roll back the whole request.
+**Transactions belong to the route layer**, using psycopg3's `with db:` context manager. It commits on success and rolls back on any exception. Services never call `commit()` or `rollback()`. They let exceptions propagate so the route can roll back the whole request.
 
-**N+1 queries** are eliminated via JOIN queries in the repository layer. Candidates are fetched with their offices in a single query; options are fetched with their initiatives in a single query. Grouping happens in Python.
+**No N+1 queries.** Candidates come back with their offices in one JOIN, options with their initiatives in another. Grouping happens in Python.
 
 ---
 
@@ -122,12 +88,12 @@ PostgreSQL
 
 | Feature | Where |
 |---|---|
-| Materialized views | `mv_candidate_results`, `mv_initiative_results` — pre-computed vote tallies |
-| Stored procedure | `refresh_election_results()` — refreshes both materialized views atomically |
-| SELECT FOR UPDATE | `get_election_for_update()` in `election_repository.py` — prevents concurrent ballot edits |
+| Materialized views | `mv_candidate_results`, `mv_initiative_results`: pre-computed vote tallies |
+| Stored procedure | `refresh_election_results()` refreshes both materialized views atomically |
+| SELECT FOR UPDATE | `get_election_for_update()` in `election_repository.py` stops concurrent ballot edits |
 | Bulk loading | `COPY`-based import of the 1.9M-row historical dataset |
-| Transactional outbox | `event_outbox` — events committed with the vote that produced them |
-| SKIP LOCKED | `claim_unpublished()` in `outbox_repository.py` — lets relays scale horizontally |
+| Transactional outbox | `event_outbox` commits events with the vote that produced them |
+| SKIP LOCKED | `claim_unpublished()` in `outbox_repository.py` lets relays scale horizontally |
 | Parameterized queries | All SQL uses `%s` placeholders throughout repositories |
 
 ---
@@ -203,7 +169,7 @@ election-system/
 ├── server.py                    # Start the app in production (via Gunicorn)
 ├── requirements.txt
 ├── requirements-dev.txt
-└── .env                         # Not committed — see setup below
+└── .env                         # Not committed, see setup below
 ```
 
 ---
@@ -212,19 +178,18 @@ election-system/
 
 ### The problem
 
-Results are served from two materialized views. Refreshing them re-aggregates
-every `candidate_vote` row — measured at **698ms** against the full dataset of
-1.36M rows, while submitting a vote takes about **21ms**.
+Results come from two materialized views. Refreshing them re-aggregates every
+`candidate_vote` row. On the full dataset of 1.36M rows that takes **698ms**.
+Submitting a vote takes about **21ms**.
 
-That leaves no good synchronous option:
+Neither synchronous option works:
 
-- **Refresh on every vote** makes voting 30x slower, and
-  `REFRESH MATERIALIZED VIEW CONCURRENTLY` cannot overlap itself, so concurrent
-  voters serialise behind each other. At 100 votes/second this would demand
-  70 seconds of refresh work per second.
-- **Never refresh** is what the system did before: results were only ever
-  recalculated by the bulk importer, so `/api/elections/<id>/results` served
-  stale tallies indefinitely.
+- **Refresh on every vote** makes voting 30x slower. `REFRESH MATERIALIZED VIEW
+  CONCURRENTLY` also can't overlap itself, so concurrent voters queue behind
+  each other. At 100 votes/second you'd need 70 seconds of refresh work per
+  second, which is impossible.
+- **Never refresh** is what it did before. Only the bulk importer ever called
+  the refresh, so `/api/elections/<id>/results` served stale tallies forever.
 
 ### The design
 
@@ -245,34 +210,33 @@ Kafka topic: election.vote.cast   (3 partitions, keyed by election_id)
 CALL refresh_election_results()   ← at most once per REFRESH_INTERVAL_SECONDS
 ```
 
-**Transactional outbox.** The vote request does not contact Kafka. It writes the
-event into `event_outbox` in the same transaction as the vote itself, so the
-event exists if and only if the vote committed. A separate relay publishes those
-rows to the broker.
+**Transactional outbox.** The vote request never touches Kafka. It writes the
+event into `event_outbox` in the same transaction as the vote, so the event
+exists only if the vote committed. A separate relay moves those rows to the
+broker.
 
-This avoids the dual-write problem — writing to Postgres and Kafka as two
-independent operations, where a failure between them either loses the event or
-announces a vote that was rolled back. It also means **Kafka being down cannot
-stop people voting**; events queue in the table and drain when the broker returns.
+This avoids the dual-write problem. If you write to Postgres and Kafka as two
+separate operations, a failure in between either loses the event or announces a
+vote that got rolled back. It also means **Kafka can be down and people can
+still vote**. Events pile up in the table and drain once the broker is back.
 
-**Debounced refresh.** The consumer collapses any number of vote events into at
-most one refresh per interval. Refresh cost becomes a fixed duty cycle — roughly
-700ms per interval — regardless of how fast votes arrive, and results lag by at
-most that interval.
+**Debounced refresh.** The consumer batches any number of vote events into one
+refresh per interval. Refresh cost stays at roughly 700ms per interval no matter
+how fast votes arrive, and results are never more than one interval behind.
 
 ### Delivery guarantees
 
 | Concern | Handling |
 |---|---|
-| Event lost if the app crashes after commit | Impossible — the event is part of that commit |
+| Event lost if the app crashes after commit | Can't happen. The event is part of that commit |
 | Broker unavailable | Rows stay unpublished and are retried; voting is unaffected |
 | Relay crashes after publishing, before marking | Event republishes (at-least-once) |
-| Duplicate delivery | Harmless — a refresh recomputes from base tables, so it is idempotent |
+| Duplicate delivery | Harmless. A refresh recomputes from base tables, so it's idempotent |
 | Multiple relay instances | `FOR UPDATE SKIP LOCKED` gives each a disjoint batch |
 | Ordering within an election | Events are keyed by `election_id`, so one election maps to one partition |
 
-The event payload deliberately excludes voter identity. Consumers only need to
-know that a vote landed and which election it belongs to.
+The event payload leaves out who voted. Consumers only need to know a vote
+landed and which election it was in.
 
 ### Measured
 
@@ -294,19 +258,20 @@ python scripts/load_test.py --voters 300 --concurrency 25
 
 Those 300 votes collapsed into 2 refreshes of ~580ms each. Refreshing inline on
 each vote would have cost roughly `300 x 650ms = 195 seconds` of aggregation;
-the pipeline did it in about 1.2 seconds of refresh work — a ~160x reduction.
+the pipeline did it in about 1.2 seconds, roughly 160x less.
 After the run the view total matched the raw vote count exactly (302 = 302).
 
-The bottleneck in that test is the web tier, not the database or the broker:
-2 synchronous Gunicorn workers serving 2 requests per vote (login, then vote)
-accounts for the observed throughput. Adding workers is the lever there.
+The bottleneck in that test is the web tier, not the database or the broker.
+Two synchronous Gunicorn workers handling two requests per vote (login, then
+vote) accounts for the throughput. More workers is the fix.
 
 ---
 
 ## Observability
 
-Prometheus scrapes the app and both workers; Grafana ships with a provisioned
-dashboard, so `docker compose up` gives you working graphs with no setup.
+Prometheus scrapes the app and both workers. Grafana comes with the dashboard
+already provisioned, so `docker compose up` gives you working graphs with no
+setup.
 
 | Service | URL |
 |---|---|
@@ -318,21 +283,20 @@ dashboard, so `docker compose up` gives you working graphs with no setup.
 
 | Metric | Why it matters |
 |---|---|
-| `election_http_request_duration_seconds` | Request latency histogram, labelled by Flask rule rather than raw path so 2,000 elections do not become 2,000 time series |
+| `election_http_request_duration_seconds` | Request latency, labelled by Flask rule instead of raw path so 2,000 elections don't become 2,000 separate time series |
 | `election_votes_submitted_total` | Accepted ballots |
-| `election_outbox_pending_events` | Backlog depth — events written but not yet on the broker |
-| `election_outbox_oldest_pending_seconds` | **The health signal.** Depth alone is ambiguous: a large backlog draining fast is fine, a small one that never empties is not. Age is what says whether the relay is keeping up |
-| `election_results_refresh_duration_seconds` | Refresh cost, which scales with vote volume |
-| `election_results_refreshes_total` | Refresh count — compare against events consumed to see the debounce working |
+| `election_outbox_pending_events` | Backlog depth: events written but not yet on the broker |
+| `election_outbox_oldest_pending_seconds` | **The one that matters.** Depth on its own is ambiguous: a big backlog that's draining is fine, a small one that never empties isn't. Age tells you whether the relay is keeping up |
+| `election_results_refresh_duration_seconds` | Refresh cost, which grows with vote volume |
+| `election_results_refreshes_total` | Refresh count. Compare against events consumed to see the debounce working |
 
-The dashboard's "Pipeline throughput" panel plots events published against
-refreshes performed. Under load the first climbs with traffic while the second
-stays flat, which is the entire argument for the design in one graph.
+The "Pipeline throughput" panel plots events published against refreshes
+performed. Under load the first climbs and the second stays flat.
 
-Gunicorn runs multiple workers, so the app uses `prometheus_client`'s
-multiprocess mode — workers pool their counters in a shared directory
-(`PROMETHEUS_MULTIPROC_DIR`) and `/metrics` aggregates across them. Without it,
-each scrape would report whichever worker happened to answer.
+Gunicorn runs several workers, so the app uses `prometheus_client`'s
+multiprocess mode. Workers pool their counters in a shared directory
+(`PROMETHEUS_MULTIPROC_DIR`) and `/metrics` adds them up. Without it every scrape
+would report whichever worker happened to answer.
 
 ---
 
@@ -382,7 +346,7 @@ draft → active → completed
 | GET | `/api/societies` | Admin/Employee | List societies |
 | POST | `/api/societies` | Admin | Create society |
 | GET | `/api/societies/assignments` | Admin | List employee–society assignments |
-| GET | `/api/users` | Admin | List users — paged (`search`, `role`, `limit`, `offset`) |
+| GET | `/api/users` | Admin | List users, paged (`search`, `role`, `limit`, `offset`) |
 | GET | `/api/users/employees` | Admin | List employees (for the assignment picker) |
 | POST | `/api/users` | Admin | Create user |
 | PUT | `/api/users/<id>` | Admin | Update user (status, role, etc.) |
@@ -419,7 +383,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 > **Port note:** `5433` is used instead of the default `5432` to avoid colliding
 > with any PostgreSQL already installed on the host machine. Change it if `5433`
 > is taken. Inside the Docker network the app reaches the database at
-> `postgres:5432` — the `5433` mapping only applies from your machine.
+> `postgres:5432`. The `5433` mapping only applies from your machine.
 
 ### 2. Start the stack
 
@@ -474,12 +438,12 @@ Finally, make the dataset usable as a demonstration:
 python scripts/enrich_demo_data.py
 ```
 
-Everyone in the source data is a plain member drawn from a pool of 177 first
-names and 256 surnames, so no society has officers or staff and the member list
-repeats the same handful of surnames. This script gives each society officers,
-creates the staff accounts that run elections, and widens the name pool. It is
-deterministic and re-runnable, and it touches only names, roles and assignments
-— every vote, ballot and election is left exactly as imported.
+Everyone in the source data is a plain member, and the names come from a pool of
+177 first names and 256 surnames. So no society has officers or staff, and the
+member list repeats the same handful of surnames. This script gives each society
+officers, creates the staff accounts that run elections, and widens the name
+pool. It's deterministic and safe to re-run. It only touches names, roles and
+assignments, so every vote, ballot and election stays exactly as imported.
 
 The app is now served at `http://localhost:3000`.
 
@@ -551,15 +515,16 @@ from 2000 to 2025:
 
 `import_election_data.py` handles three quirks in this data:
 
-- **`dirty.psv`** carries duplicate rows, society IDs written as `.10` instead of `10`,
-  blank roles, and mixed line endings. These are de-duplicated, repaired, and defaulted.
-- **Undervotes** — 39,454 rows record a member skipping an office, with no candidate
-  selected. The `chk_candidate_or_writein` constraint has no representation for
-  "abstained", so these are reported but not stored; the ballot still records that the
-  member participated.
-- **Multi-seat offices** — 614 offices allow 2 votes, so one member legitimately appears
-  twice for the same office. The importer preserves these and validates that no ballot
-  exceeds its office's `votes_allowed`.
+- **`dirty.psv`** has duplicate rows, society IDs written as `.10` instead of `10`,
+  blank roles and mixed line endings. The importer de-duplicates, repairs and
+  defaults these.
+- **Undervotes.** 39,454 rows are a member skipping an office with no candidate
+  selected. The `chk_candidate_or_writein` constraint has no way to represent
+  "abstained", so these get counted and reported but not stored. The ballot still
+  shows the member voted.
+- **Multi-seat offices.** 614 offices allow 2 votes, so the same member showing up
+  twice for one office is correct, not a duplicate. The importer keeps these and
+  checks no ballot goes over its office's `votes_allowed`.
 
 Elections are imported as `completed` and attributed to a `system@americandream.local`
 account, since the source data has no creator column and `election.created_by` is `NOT NULL`.
